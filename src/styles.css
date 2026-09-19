@@ -677,6 +677,11 @@
   white-space: normal;
   transition: opacity 240ms ease, border-color 240ms ease, background 240ms ease, transform 240ms ease;
 }
+.hall-person[data-speaker="1"] { left: 50%; top: 22%; }
+.hall-person[data-speaker="2"] { left: 22%; top: 48%; }
+.hall-person[data-speaker="3"] { left: 78%; top: 43%; }
+.hall-person[data-speaker="4"] { left: 31%; top: 75%; }
+.hall-person[data-speaker="5"] { left: 72%; top: 72%; }
 .hall-person:hover,.hall-person[data-selected="true"] { border-color: color-mix(in oklab, var(--guided-accent) 60%, transparent); background: color-mix(in oklab, var(--guided-accent) 10%, var(--guided-base)); transform: translate(-50%, -50%) scale(1.04); }
 .hall-person[data-pinned="true"] { border-color: var(--guided-accent); background: color-mix(in oklab, var(--guided-accent) 18%, var(--guided-base)); box-shadow: 0 0 32px color-mix(in oklab, var(--guided-accent) 22%, transparent); }
 .hall-person[data-suppressed="true"] { opacity: .24; filter: saturate(.2); }

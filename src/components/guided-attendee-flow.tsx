@@ -69,7 +69,7 @@ function EventHallMap({ selected, pinned, onSelect, onPin }: {
               data-selected={isSelected}
               data-pinned={isPinned}
               data-suppressed={pinned !== null && !isPinned}
-              style={{ left: `${speaker.x}%`, top: `${speaker.y}%` }}
+               data-speaker={speaker.id}
               onClick={() => onSelect(speaker)}
               aria-pressed={isSelected}
               aria-label={`Select Person ${speaker.id}, ${speaker.hz} hertz, ${speaker.direction}`}
