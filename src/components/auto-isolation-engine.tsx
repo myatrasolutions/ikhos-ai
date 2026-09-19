@@ -158,9 +158,24 @@ export function AutoIsolationEngine({
     const start = async () => {
       let stream: MediaStream;
       try {
-        stream = await navigator.mediaDevices.getUserMedia({
-          audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
-        });
+        // Raw far-field capture: disable browser near-field suppression (AEC/AGC/NS)
+        // so distant stage voices are not dropped before our DSP pipeline sees them.
+        const constraints: MediaStreamConstraints = {
+          audio: {
+            echoCancellation: false,
+            noiseSuppression: false,
+            autoGainControl: false,
+            channelCount: { ideal: 2 },
+          },
+        };
+        try {
+          stream = await navigator.mediaDevices.getUserMedia(constraints);
+        } catch {
+          // Some MEMS hardware rejects stereo requests — fall back to mono.
+          stream = await navigator.mediaDevices.getUserMedia({
+            audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
+          });
+        }
       } catch {
         if (!disposed) {
           setState("denied");
