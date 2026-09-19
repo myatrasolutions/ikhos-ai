@@ -377,9 +377,9 @@ export async function extractTextFromImage(
 export async function answerQuestion(input: {
   question: string;
   language: string;
-  context?: string;
-  imageBase64?: string;
-  imageMimeType?: string;
+  context?: string | undefined;
+  imageBase64?: string | undefined;
+  imageMimeType?: string | undefined;
 }): Promise<PipelineResult<string>> {
   const started = Date.now();
   const parts: GeminiPart[] = [];

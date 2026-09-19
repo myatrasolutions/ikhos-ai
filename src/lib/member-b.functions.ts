@@ -62,7 +62,7 @@ export const runSpeechPipeline = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => PipelineInput.parse(input))
   .handler(async ({ data }) => {
     const { transcribeAudio, translateText } = await import("@/lib/google-ai.server");
-    const steps: Array<{ step: string; provider: string; latencyMs: number; note?: string }> = [];
+    const steps: Array<{ step: string; provider: string; latencyMs: number; note?: string | undefined }> = [];
 
     let original: string;
     let sttLatency = 0;
@@ -153,7 +153,7 @@ export const runSlideOcr = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => OcrInput.parse(input))
   .handler(async ({ data }) => {
     const { extractTextFromImage, translateText } = await import("@/lib/google-ai.server");
-    const steps: Array<{ step: string; provider: string; latencyMs: number; note?: string }> = [];
+    const steps: Array<{ step: string; provider: string; latencyMs: number; note?: string | undefined }> = [];
 
     const ocr = await extractTextFromImage(data.imageBase64, data.imageMimeType);
     steps.push({
