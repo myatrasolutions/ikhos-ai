@@ -223,6 +223,21 @@ export function MemberBEnginePanel() {
     }
   };
 
+  const runSimulatedPayload = async () => {
+    setBusy(true);
+    setError("");
+    try {
+      const result = await simulatePayload({ data: { language: language as never } });
+      setOriginal(result.original);
+      setTranslated(result.translated);
+      record(result.steps);
+    } catch (caught) {
+      handleFailure(caught);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const toggleRecording = async () => {
     setError("");
     if (recording) {
