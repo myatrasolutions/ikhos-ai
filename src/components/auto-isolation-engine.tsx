@@ -36,9 +36,11 @@ function describePitch(hz: number): string {
 export function AutoIsolationEngine({
   language,
   onHighNoise,
+  initialTargetHz,
 }: {
   language: LanguageName;
   onHighNoise?: (high: boolean) => void;
+  initialTargetHz?: number | null;
 }) {
   const runPipeline = useServerFn(runSpeechPipeline);
   const synthesize = useServerFn(synthesizeTranslation);
@@ -46,19 +48,20 @@ export function AutoIsolationEngine({
   const [state, setState] = useState<EngineState>("starting");
   const [level, setLevel] = useState(0);
   const [sources, setSources] = useState<NoiseSource[]>([]);
-  const [lockedHz, setLockedHz] = useState<number | null>(null);
+  const [lockedHz, setLockedHz] = useState<number | null>(initialTargetHz ?? null);
   const [lockedId, setLockedId] = useState<number | null>(null);
-  const [pinned, setPinned] = useState(false);
+  const [pinned, setPinned] = useState(initialTargetHz !== null && initialTargetHz !== undefined);
   const [status, setStatus] = useState("Sampling the room for distinct voices…");
   const [lastTranslation, setLastTranslation] = useState("");
 
   const filterRef = useRef<BiquadFilterNode | null>(null);
   const chunksRef = useRef<Float32Array[]>([]);
   const sampleRateRef = useRef(48000);
-  const lockedRef = useRef<number | null>(null);
+  const lockedRef = useRef<number | null>(initialTargetHz ?? null);
   /** Identity of the pinned person; survives frequency drift. */
   const lockedIdRef = useRef<number | null>(null);
-  const pinnedRef = useRef(false);
+  const pinnedRef = useRef(initialTargetHz !== null && initialTargetHz !== undefined);
+  const initialTargetRef = useRef(initialTargetHz ?? null);
   const busyRef = useRef(false);
   const highRef = useRef(false);
   const cleanupRef = useRef<(() => void) | null>(null);
@@ -182,8 +185,8 @@ export function AutoIsolationEngine({
       // Isolation chain: everything the engine transcribes passes the bandpass.
       const filter = context.createBiquadFilter();
       filter.type = "bandpass";
-      filter.frequency.value = 180;
-      filter.Q.value = 1;
+      filter.frequency.value = initialTargetRef.current ?? 180;
+      filter.Q.value = initialTargetRef.current === null ? 1 : LOCK_Q * 1.5;
       filterRef.current = filter;
       source.connect(filter);
 
@@ -250,6 +253,16 @@ export function AutoIsolationEngine({
         }
         top.sort((a, b) => a.id - b.id);
         setSources(top.slice(0, 5));
+
+        // A speaker chosen on the event-hall map is already pinned. Attach the
+        // closest detected voice identity to that target without switching away.
+        if (lockedIdRef.current === null && initialTargetRef.current !== null && top.length) {
+          const targetHz = initialTargetRef.current;
+          const nearest = [...top].sort(
+            (a, b) => Math.abs(a.hz - targetHz) - Math.abs(b.hz - targetHz),
+          )[0];
+          if (nearest) lockPitchRef.current(nearest.id, nearest.hz, true);
+        }
 
         // Follow the pinned person's drifting centroid instead of re-picking a voice.
         if (lockedIdRef.current !== null) {

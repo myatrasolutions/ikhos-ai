@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowRight, Check, Gauge, Languages, LockKeyhole, Mic2, Sparkles, Waves } from "lucide-react";
+import { ArrowRight, Check, Gauge, Languages, LockKeyhole, Mic2, Radio, UserRound, Waves } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { AutoIsolationEngine } from "@/components/auto-isolation-engine";
@@ -9,145 +9,83 @@ import type { Tables } from "@/integrations/supabase/types";
 type Stream = Tables<"active_streams">;
 type Step = "welcome" | "calibrate" | "live";
 
-const MIN_HZ = 100;
-const MAX_HZ = 4000;
+type HallSpeaker = { id: number; hz: number; x: number; y: number; direction: string; preview: string };
 
-const PREVIEW_SNIPPETS: Array<[number, string]> = [
-  [160, "...thank you all for joining us this evening..."],
-  [240, "...welcome graduates of 2026..."],
-  [320, "...please take your seats, the ceremony begins shortly..."],
-  [700, "[crowd chatter · low intelligibility]"],
-  [1600, "[applause and ambient hall reverb]"],
-  [3000, "[HVAC and room tone]"],
+const HALL_SPEAKERS: HallSpeaker[] = [
+  { id: 1, hz: 240, x: 50, y: 22, direction: "Center stage", preview: "Welcome graduates of 2026…" },
+  { id: 2, hz: 176, x: 22, y: 48, direction: "Front left", preview: "Please move toward the east entrance…" },
+  { id: 3, hz: 318, x: 78, y: 43, direction: "Front right", preview: "The ceremony will begin shortly…" },
+  { id: 4, hz: 205, x: 31, y: 75, direction: "Rear left", preview: "Thank you for joining us this evening…" },
+  { id: 5, hz: 362, x: 72, y: 72, direction: "Rear right", preview: "Ambient conversation nearby…" },
 ];
 
-function snippetFor(hz: number) {
-  let best: [number, string] = [240, "...welcome graduates of 2026..."];
-  for (const item of PREVIEW_SNIPPETS) {
-    if (Math.abs(item[0] - hz) < Math.abs(best[0] - hz)) best = item;
-  }
-  return best[1];
-}
-
-function hzToX(hz: number, width: number) {
-  const ratio = (Math.log(hz) - Math.log(MIN_HZ)) / (Math.log(MAX_HZ) - Math.log(MIN_HZ));
-  return ratio * width;
-}
-
-function xToHz(x: number, width: number) {
-  const ratio = Math.max(0, Math.min(1, x / width));
-  return Math.round(MIN_HZ * Math.pow(MAX_HZ / MIN_HZ, ratio));
-}
-
-/** Animated spectral heatmap across 100 Hz – 4 kHz with hover preview and click-to-pin. */
-function SpectrumHeatmap({ pinned, onPin }: { pinned: number | null; onPin: (hz: number) => void }) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [hover, setHover] = useState<{ hz: number; x: number } | null>(null);
-  const pinnedRef = useRef(pinned);
-  pinnedRef.current = pinned;
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    let frame = 0;
-    let raf = 0;
-
-    const draw = () => {
-      frame += 1;
-      const width = canvas.width;
-      const height = canvas.height;
-      ctx.clearRect(0, 0, width, height);
-
-      const bars = 96;
-      for (let i = 0; i < bars; i += 1) {
-        const ratio = i / (bars - 1);
-        const hz = MIN_HZ * Math.pow(MAX_HZ / MIN_HZ, ratio);
-        // Stage-voice formants plus crowd energy.
-        const voice = Math.exp(-Math.pow((hz - 240) / 90, 2)) * 0.95
-          + Math.exp(-Math.pow((hz - 160) / 70, 2)) * 0.6
-          + Math.exp(-Math.pow((hz - 320) / 80, 2)) * 0.5;
-        const crowd = Math.exp(-Math.pow((hz - 900) / 700, 2)) * 0.35;
-        const shimmer = 0.12 * Math.sin(frame / 7 + i / 3) + 0.1 * Math.sin(frame / 13 + i);
-        let amp = Math.max(0.05, voice + crowd + shimmer * 0.5);
-        if (pinnedRef.current !== null) {
-          const focus = Math.exp(-Math.pow((hz - pinnedRef.current) / 70, 2));
-          amp = amp * (0.12 + focus * 1.1);
-        }
-        amp = Math.min(1, amp);
-
-        const x = (i / bars) * width;
-        const barWidth = width / bars - 2;
-        const barHeight = amp * (height - 26);
-        const grad = ctx.createLinearGradient(0, height - 26, 0, height - 26 - barHeight);
-        grad.addColorStop(0, "rgba(6, 182, 212, 0.18)");
-        grad.addColorStop(1, amp > 0.7 ? "rgba(34, 211, 238, 0.95)" : "rgba(6, 182, 212, 0.6)");
-        ctx.fillStyle = grad;
-        ctx.fillRect(x, height - 26 - barHeight, barWidth, barHeight);
-      }
-
-      if (pinnedRef.current !== null) {
-        const px = hzToX(pinnedRef.current, width);
-        ctx.strokeStyle = "rgba(16, 185, 129, 0.9)";
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(px, 0);
-        ctx.lineTo(px, height - 26);
-        ctx.stroke();
-      }
-
-      ctx.fillStyle = "rgba(148, 163, 184, 0.85)";
-      ctx.font = "11px ui-monospace, monospace";
-      for (const tick of [100, 250, 500, 1000, 2000, 4000]) {
-        const tx = Math.min(width - 28, hzToX(tick, width));
-        ctx.fillText(tick >= 1000 ? `${tick / 1000}k` : String(tick), tx, height - 8);
-      }
-
-      raf = requestAnimationFrame(draw);
-    };
-    raf = requestAnimationFrame(draw);
-    return () => cancelAnimationFrame(raf);
-  }, []);
-
-  const handleMove = (event: React.MouseEvent<HTMLCanvasElement>) => {
-    const rect = event.currentTarget.getBoundingClientRect();
-    const x = event.clientX - rect.left;
-    setHover({ hz: xToHz((x / rect.width) * 900, 900), x });
-  };
-
+function EventHallMap({ selected, pinned, onSelect, onPin }: {
+  selected: HallSpeaker | null;
+  pinned: HallSpeaker | null;
+  onSelect: (speaker: HallSpeaker) => void;
+  onPin: () => void;
+}) {
   return (
-    <div className="spectrum-wrap">
-      <canvas
-        ref={canvasRef}
-        width={900}
-        height={240}
-        className="spectrum-canvas"
-        role="img"
-        aria-label="Live frequency heatmap from 100 hertz to 4 kilohertz. Select a frequency peak to pin the stage speaker signature."
-        tabIndex={0}
-        onMouseMove={handleMove}
-        onMouseLeave={() => setHover(null)}
-        onClick={(event) => {
-          const rect = event.currentTarget.getBoundingClientRect();
-          onPin(xToHz(((event.clientX - rect.left) / rect.width) * 900, 900));
-        }}
-        onKeyDown={(event) => {
-          if (event.key === "Enter" || event.key === " ") {
-            event.preventDefault();
-            onPin(240);
-          }
-        }}
-      />
-      {hover ? (
-        <div className="spectrum-tooltip" style={{ left: `${hover.x}px` }} role="status">
-          <strong>Hovering {hover.hz} Hz</strong>
-          <span>“{snippetFor(hover.hz)}”</span>
+    <div className="hall-experience">
+      <aside className="hall-guidance" aria-label="Speaker selection details">
+        <div>
+          <p className="eyebrow">Live acoustic map</p>
+          <h2>Choose the voice that matters.</h2>
+          <p>Each person is positioned by the direction their voice reaches you from. Select one to hear a preview.</p>
         </div>
-      ) : null}
-      <div className="spectrum-hint">
-        <Sparkles aria-hidden="true" />
-        Hover any peak to preview what that voice is saying, then click it to pin the stage speaker.
+        <div className="hall-selected-readout" aria-live="polite">
+          {selected ? (
+            <>
+              <span className="hall-mini-person"><UserRound aria-hidden="true" /></span>
+              <div>
+                <small>Selected voice</small>
+                <strong>Person {selected.id} · {selected.hz} Hz</strong>
+                <span>{selected.direction}</span>
+              </div>
+              <blockquote>“{selected.preview}”</blockquote>
+            </>
+          ) : (
+            <p>Select a person in the hall to preview their voice.</p>
+          )}
+        </div>
+        <Button className="hall-pin-button" onClick={onPin} disabled={!selected} aria-label="Pin selected speaker and remove surrounding noise">
+          <LockKeyhole aria-hidden="true" />
+          {pinned ? `Pinned · Person ${pinned.id}` : "Pin selected speaker"}
+        </Button>
+      </aside>
+
+      <div className="event-hall" aria-label="Event hall showing five detected people by sound direction">
+        <div className="hall-stage"><span>UNT FRISCO LANDING</span><strong>Main stage</strong></div>
+        <div className="hall-listener"><span>You</span></div>
+        <div className="hall-direction-line" aria-hidden="true" />
+        {HALL_SPEAKERS.map((speaker) => {
+          const isSelected = selected?.id === speaker.id;
+          const isPinned = pinned?.id === speaker.id;
+          return (
+            <Button
+              key={speaker.id}
+              variant="ghost"
+              className="hall-person"
+              data-selected={isSelected}
+              data-pinned={isPinned}
+              data-suppressed={pinned !== null && !isPinned}
+               data-speaker={speaker.id}
+              onClick={() => onSelect(speaker)}
+              aria-pressed={isSelected}
+              aria-label={`Select Person ${speaker.id}, ${speaker.hz} hertz, ${speaker.direction}`}
+            >
+              <span className="sound-ring ring-one" aria-hidden="true" />
+              <span className="sound-ring ring-two" aria-hidden="true" />
+              <span className="person-avatar"><UserRound aria-hidden="true" /></span>
+              <strong>Person {speaker.id}</strong>
+              <small>{speaker.hz} Hz · {speaker.direction}</small>
+            </Button>
+          );
+        })}
+        <div className="hall-status">
+          <Radio aria-hidden="true" />
+          {pinned ? "One voice isolated · surrounding sound removed" : "5 distinct voices detected"}
+        </div>
       </div>
     </div>
   );
@@ -186,27 +124,28 @@ function WelcomeScreen({ onContinue }: { onContinue: () => void }) {
 }
 
 function CalibrateScreen({ pinned, setPinned, onConfirm }: {
-  pinned: number | null; setPinned: (hz: number) => void; onConfirm: () => void;
+  pinned: HallSpeaker | null; setPinned: (speaker: HallSpeaker) => void; onConfirm: () => void;
 }) {
+  const [selected, setSelected] = useState<HallSpeaker | null>(null);
   return (
     <section className="guided-screen animate-fade-in" aria-labelledby="guided-calibrate-heading">
       <div className="guided-hero compact">
         <p className="eyebrow">Step 2 of 3</p>
-        <h1 id="guided-calibrate-heading" className="guided-title">Stage Speaker Calibration</h1>
-        <p className="guided-body">Find the voice you want to hear, then pin its frequency signature to strip the crowd away.</p>
+        <h1 id="guided-calibrate-heading" className="guided-title">Who would you like to hear?</h1>
+        <p className="guided-body">Choose a person by where their voice is coming from. Pinning keeps only that voice for live translation.</p>
       </div>
-      <div className="guided-card wide">
-        <SpectrumHeatmap pinned={pinned} onPin={setPinned} />
+      <div className="guided-card wide hall-card">
+        <EventHallMap selected={selected} pinned={pinned} onSelect={setSelected} onPin={() => selected && setPinned(selected)} />
         {pinned !== null ? (
           <div className="signature-locked" role="status">
             <Check aria-hidden="true" />
             <div>
-              <strong>[ Locked: {pinned} Hz Stage Speaker Centroid ]</strong>
-              <span>Stage PA Signature Locked • 95% Crowd Noise Stripped</span>
+              <strong>Person {pinned.id} is pinned · {pinned.hz} Hz</strong>
+              <span>Surrounding crowd noise removed • only this voice will be translated</span>
             </div>
           </div>
         ) : (
-          <p className="guided-hintline"><LockKeyhole aria-hidden="true" />No signature pinned yet — click a bright peak near 240 Hz.</p>
+          <p className="guided-hintline"><LockKeyhole aria-hidden="true" />Select a person on the hall map, then pin their voice.</p>
         )}
         <Button className="guided-cta" onClick={onConfirm} disabled={pinned === null} aria-label="Confirm signature and start live translation">
           Confirm Signature &amp; Start Live Translation <ArrowRight aria-hidden="true" />
@@ -216,7 +155,7 @@ function CalibrateScreen({ pinned, setPinned, onConfirm }: {
   );
 }
 
-function LiveScreen({ streams, pinned }: { streams: Stream[]; pinned: number | null }) {
+function LiveScreen({ streams, pinned }: { streams: Stream[]; pinned: HallSpeaker | null }) {
   const { language } = useIkhosLanguage();
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -233,21 +172,22 @@ function LiveScreen({ streams, pinned }: { streams: Stream[]; pinned: number | n
   const latency = latest ? (latest.latency_ms / 1000).toFixed(1) : "1.4";
 
   return (
-    <section className="guided-screen animate-fade-in" aria-labelledby="guided-live-heading">
-      <div className="guided-hero compact">
+    <section className="guided-screen live-reading-screen animate-fade-in" aria-labelledby="guided-live-heading">
+      <div className="guided-hero compact live-reading-header">
         <p className="eyebrow"><span className="live-dot" />Live translation running</p>
-        <h1 id="guided-live-heading" className="guided-title">Live Neural Translation · {language}</h1>
+        <h1 id="guided-live-heading" className="guided-title">Listening to Person {pinned?.id ?? 1}</h1>
+        <p className="guided-body">A clear, uninterrupted translation in {language}.</p>
       </div>
 
       <div className="focus-stream" ref={scrollRef} aria-live="polite">
         <div className="focus-block raw">
-          <p className="data-label"><Mic2 aria-hidden="true" /> Stage Speaker (English Raw)</p>
+          <p className="data-label"><Mic2 aria-hidden="true" /> Person {pinned?.id ?? 1} · English</p>
           {entries.length ? entries.map((entry) => (
             <p key={`fo-${entry.id}`} className="focus-raw-copy">“{entry.original_transcript}”</p>
           )) : <p className="focus-raw-copy">Listening for the stage speaker…</p>}
         </div>
         <div className="focus-block translated">
-          <p className="data-label text-signal">Live Neural Translation ({language})</p>
+          <p className="data-label text-signal">Your live translation · {language}</p>
           {entries.length ? entries.map((entry) => (
             <p key={`ft-${entry.id}`} className="focus-translated-copy">“{entry.translated_transcript}”</p>
           )) : <p className="focus-translated-copy">Translation begins the moment the speaker starts.</p>}
@@ -255,12 +195,12 @@ function LiveScreen({ streams, pinned }: { streams: Stream[]; pinned: number | n
       </div>
 
       <div className="guided-card">
-        <AutoIsolationEngine language={language} />
+        <AutoIsolationEngine language={language} initialTargetHz={pinned?.hz ?? null} />
       </div>
 
       <div className="focus-telemetry" role="status">
         <span><Waves aria-hidden="true" />Isolation: −96 dB</span>
-        <span><Gauge aria-hidden="true" />Target: {pinned ?? 240} Hz</span>
+        <span><Gauge aria-hidden="true" />Person {pinned?.id ?? 1}: {pinned?.hz ?? 240} Hz</span>
         <span><Check aria-hidden="true" />Latency: {latency}s</span>
       </div>
     </section>
@@ -269,7 +209,7 @@ function LiveScreen({ streams, pinned }: { streams: Stream[]; pinned: number | n
 
 export function GuidedAttendeeFlow({ streams }: { streams: Stream[] }) {
   const [step, setStep] = useState<Step>("welcome");
-  const [pinned, setPinned] = useState<number | null>(null);
+  const [pinned, setPinned] = useState<HallSpeaker | null>(null);
 
   return (
     <div className="page-shell guided-shell">
