@@ -629,8 +629,8 @@
 .hall-selected-readout span { display: block; color: color-mix(in oklab, var(--guided-ink) 58%, transparent); font-size: .72rem; }
 .hall-selected-readout strong { display: block; margin: .12rem 0; color: var(--guided-ink); }
 .hall-selected-readout blockquote { grid-column: 1 / -1; border-top: 1px solid color-mix(in oklab, var(--guided-accent) 16%, transparent); padding-top: .8rem; color: var(--guided-accent); font-family: "Instrument Serif", serif; font-size: 1.15rem; line-height: 1.4; }
-.hall-mini-person { display: grid; width: 2.5rem; height: 2.5rem; place-items: center; border: 1px solid var(--guided-accent); color: var(--guided-accent); }
-.hall-mini-person svg { width: 1.2rem; }
+.hall-mini-person { display: grid; width: 2.5rem; height: 2.5rem; place-items: center; border: 1.5px solid color-mix(in oklab, var(--guided-accent) 55%, transparent); border-radius: 50%; color: var(--guided-ink); background: radial-gradient(circle at 32% 26%, color-mix(in oklab, var(--guided-accent) 34%, var(--guided-surface)), color-mix(in oklab, var(--guided-accent) 14%, var(--guided-base))); }
+.hall-mini-person svg { width: 1.2rem; stroke-width: 2.25; }
 .hall-pin-button { min-height: 3.25rem; border-radius: .25rem; background: var(--guided-accent); color: var(--guided-base); }
 .event-hall {
   position: relative;
@@ -667,32 +667,49 @@
   position: absolute;
   z-index: 3;
   width: 8.5rem;
-  height: 6.5rem;
+  height: 7rem;
   transform: translate(-50%, -50%);
   flex-direction: column;
-  gap: .15rem;
-  border: 1px solid transparent;
-  border-radius: .25rem;
-  color: color-mix(in oklab, var(--guided-ink) 70%, transparent);
+  gap: .3rem;
+  border: 1px solid color-mix(in oklab, var(--guided-accent) 26%, transparent);
+  border-radius: .5rem;
+  padding: .55rem .4rem .6rem;
+  color: var(--guided-ink);
   white-space: normal;
-  transition: opacity 240ms ease, border-color 240ms ease, background 240ms ease, transform 240ms ease;
+  transition: opacity 240ms ease, border-color 240ms ease, background 240ms ease, box-shadow 240ms ease, transform 240ms ease;
 }
 .hall-person[data-speaker="1"] { left: 50%; top: 22%; }
 .hall-person[data-speaker="2"] { left: 22%; top: 48%; }
 .hall-person[data-speaker="3"] { left: 78%; top: 43%; }
 .hall-person[data-speaker="4"] { left: 31%; top: 75%; }
 .hall-person[data-speaker="5"] { left: 72%; top: 72%; }
-.hall-person:hover,.hall-person[data-selected="true"] { border-color: color-mix(in oklab, var(--guided-accent) 60%, transparent); background: color-mix(in oklab, var(--guided-accent) 10%, var(--guided-base)); transform: translate(-50%, -50%) scale(1.04); }
-.hall-person[data-pinned="true"] { border-color: var(--guided-accent); background: color-mix(in oklab, var(--guided-accent) 18%, var(--guided-base)); box-shadow: 0 0 32px color-mix(in oklab, var(--guided-accent) 22%, transparent); }
-.hall-person[data-suppressed="true"] { opacity: .24; filter: saturate(.2); }
-.person-avatar { position: relative; display: grid; width: 2.8rem; height: 2.8rem; place-items: center; border: 1px solid currentColor; border-radius: 50%; background: var(--guided-base); }
-.person-avatar svg { width: 1.25rem; }
-.hall-person strong { color: var(--guided-ink); font-size: .78rem; }
-.hall-person small { color: color-mix(in oklab, var(--guided-ink) 56%, transparent); font-size: .62rem; }
-.sound-ring { position: absolute; top: 1.55rem; left: 50%; width: 3.3rem; height: 3.3rem; transform: translate(-50%, -50%); border: 1px solid color-mix(in oklab, var(--guided-accent) 38%, transparent); border-radius: 50%; animation: hall-signal 2.6s ease-out infinite; }
+.hall-person:hover { border-color: color-mix(in oklab, var(--guided-accent) 70%, transparent); background: color-mix(in oklab, var(--guided-accent) 12%, var(--guided-base)); box-shadow: 0 0 24px color-mix(in oklab, var(--guided-accent) 18%, transparent); transform: translate(-50%, -50%) scale(1.05); }
+.hall-person[data-selected="true"] { border-color: color-mix(in oklab, var(--guided-accent) 75%, transparent); background: color-mix(in oklab, var(--guided-accent) 14%, var(--guided-base)); box-shadow: 0 0 28px color-mix(in oklab, var(--guided-accent) 22%, transparent); transform: translate(-50%, -50%) scale(1.05); }
+.hall-person[data-pinned="true"] { border-color: var(--guided-accent); background: color-mix(in oklab, var(--guided-accent) 20%, var(--guided-base)); box-shadow: 0 0 40px color-mix(in oklab, var(--guided-accent) 30%, transparent); }
+.hall-person[data-suppressed="true"] { opacity: .48; }
+.hall-person[data-suppressed="true"] .person-avatar { background: color-mix(in oklab, var(--guided-ink) 10%, var(--guided-base)); border-color: color-mix(in oklab, var(--guided-ink) 26%, transparent); color: color-mix(in oklab, var(--guided-ink) 40%, transparent); box-shadow: none; }
+.hall-person[data-suppressed="true"] .sound-ring { animation: none; opacity: 0; }
+.person-avatar {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  width: 3.1rem;
+  height: 3.1rem;
+  place-items: center;
+  border: 1.5px solid color-mix(in oklab, var(--guided-accent) 55%, transparent);
+  border-radius: 50%;
+  color: var(--guided-ink);
+  background: radial-gradient(circle at 32% 26%, color-mix(in oklab, var(--guided-accent) 34%, var(--guided-surface)), color-mix(in oklab, var(--guided-accent) 14%, var(--guided-base)));
+  box-shadow: inset 0 0 0 3px color-mix(in oklab, var(--guided-base) 60%, transparent), 0 0 18px color-mix(in oklab, var(--guided-accent) 26%, transparent);
+}
+.person-avatar svg { width: 1.4rem; stroke-width: 2.25; }
+.hall-person:hover .person-avatar,.hall-person[data-selected="true"] .person-avatar { border-color: var(--guided-accent); background: radial-gradient(circle at 32% 26%, color-mix(in oklab, var(--guided-accent) 48%, var(--guided-surface)), color-mix(in oklab, var(--guided-accent) 20%, var(--guided-base))); box-shadow: inset 0 0 0 3px color-mix(in oklab, var(--guided-base) 60%, transparent), 0 0 26px color-mix(in oklab, var(--guided-accent) 40%, transparent); }
+.hall-person[data-pinned="true"] .person-avatar { border-color: var(--guided-accent); color: var(--guided-base); background: var(--guided-accent); box-shadow: 0 0 30px color-mix(in oklab, var(--guided-accent) 55%, transparent); }
+.hall-person strong { color: var(--guided-ink); font-size: .8rem; letter-spacing: .01em; }
+.hall-person small { color: color-mix(in oklab, var(--guided-ink) 72%, transparent); font-size: .64rem; }
+.sound-ring { position: absolute; top: 1.75rem; left: 50%; width: 3.7rem; height: 3.7rem; transform: translate(-50%, -50%); border: 1.5px solid color-mix(in oklab, var(--guided-accent) 45%, transparent); border-radius: 50%; animation: hall-signal 2.6s ease-out infinite; }
 .sound-ring.ring-two { animation-delay: 1.3s; }
 .hall-person[data-pinned="true"] .sound-ring { border-color: var(--guided-accent); animation-duration: 1.8s; }
-.hall-person[data-suppressed="true"] .sound-ring { animation: none; opacity: 0; }
 .hall-listener { position: absolute; z-index: 2; bottom: 5%; left: 50%; display: grid; width: 2.3rem; height: 2.3rem; transform: translateX(-50%); place-items: center; border: 1px solid var(--guided-ink); border-radius: 50%; background: var(--guided-ink); color: var(--guided-base); }
 .hall-listener span { font-size: .62rem; font-weight: 700; }
 .hall-direction-line { position: absolute; z-index: 1; bottom: 9%; left: 50%; width: 1px; height: 72%; background: linear-gradient(to top, color-mix(in oklab, var(--guided-accent) 45%, transparent), transparent); }
