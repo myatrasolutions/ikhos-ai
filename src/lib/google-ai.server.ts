@@ -19,7 +19,8 @@ export type Provider =
   | "google-text-to-speech"
   | "google-vision"
   | "gemini-2.5-flash"
-  | "gemini-2.5-flash-tts";
+  | "gemini-2.5-flash-tts"
+  | "lovable-ai-tts";
 
 export type PipelineResult<T> = {
   value: T;
