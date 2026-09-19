@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { IkhosDashboard } from "@/components/ikhos-dashboard";
+import { MemberBEnginePanel } from "@/components/member-b-engine-panel";
 
 export const Route = createFileRoute("/")({
   head: () => ({
