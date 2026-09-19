@@ -427,3 +427,47 @@
   padding-top: 1.25rem;
   border-top: 1px solid var(--border);
 }
+
+.pitch-picker {
+  margin-top: 0.6rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.pitch-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.1rem;
+  min-height: 2.75rem;
+  padding: 0.35rem 0.7rem;
+  border-radius: 0.5rem;
+  border: 1px solid color-mix(in oklch, var(--signal) 35%, transparent);
+  background: color-mix(in oklch, var(--signal) 8%, transparent);
+  font-family: var(--font-mono, monospace);
+  font-size: 0.78rem;
+  color: var(--foreground);
+  cursor: pointer;
+  transition: border-color 150ms ease, background 150ms ease;
+}
+
+.pitch-chip:hover,
+.pitch-chip:focus-visible {
+  border-color: var(--signal);
+  background: color-mix(in oklch, var(--signal) 18%, transparent);
+}
+
+.pitch-chip[data-active="true"] {
+  border-color: var(--signal);
+  background: color-mix(in oklch, var(--signal) 26%, transparent);
+  box-shadow: 0 0 0 1px var(--signal) inset;
+}
+
+.pitch-chip-meta {
+  font-size: 0.62rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}

@@ -77,8 +77,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Ikhos AI" },
-      { name: "description", content: "Accessible acoustic isolation and live translation for public venues." },
+      { title: "Ikhos AI — Never Miss a Word That Matters." },
+      { name: "description", content: "Never Miss a Word That Matters. Accessible acoustic isolation and live translation for public venues." },
       { name: "author", content: "Ikhos AI" },
     ],
     links: [
