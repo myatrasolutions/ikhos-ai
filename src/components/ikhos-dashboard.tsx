@@ -31,7 +31,7 @@ import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
-import { AmbientNoiseMonitor } from "@/components/ambient-noise-monitor";
+import { AutoIsolationEngine } from "@/components/auto-isolation-engine";
 import { IKHOS_LANGUAGES, useIkhosLanguage, type LanguageName } from "@/lib/ikhos-language";
 import { useServerFn } from "@tanstack/react-start";
 import { runSpeechPipeline } from "@/lib/member-b.functions";
@@ -400,7 +400,7 @@ function AttendeeView({ streams }: { streams: Stream[] }) {
       <div className="workspace-grid">
         <section className="panel" aria-labelledby="isolation-heading">
           <div className="panel-header"><div><p className="eyebrow">DSP channel 04</p><h2 id="isolation-heading">Acoustic Isolation Control Center</h2></div><span className="status-badge"><Radio />Receiving</span></div>
-          <AmbientNoiseMonitor onHighNoise={(high) => setCutoff(high ? -96 : -72)} />
+          <AutoIsolationEngine language={language} onHighNoise={(high) => setCutoff(high ? -96 : -72)} />
           <PaAcousticLock />
           <div className="wave-stack">
             <div className="wave-panel raw-wave"><div className="wave-label"><span>Raw Venue Input</span><span>Garbled Ambient Noise</span></div><Waveform cutoff={cutoff} /></div>
