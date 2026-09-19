@@ -22,7 +22,7 @@ const PREVIEW_SNIPPETS: Array<[number, string]> = [
 ];
 
 function snippetFor(hz: number) {
-  let best = PREVIEW_SNIPPETS[0];
+  let best: [number, string] = [240, "...welcome graduates of 2026..."];
   for (const item of PREVIEW_SNIPPETS) {
     if (Math.abs(item[0] - hz) < Math.abs(best[0] - hz)) best = item;
   }
