@@ -225,3 +225,152 @@
 @media (max-width: 640px) { .page-shell{padding:1rem .75rem 2rem}.telemetry-grid{grid-template-columns:1fr}.telemetry-cell{border-right:0;border-bottom:1px solid var(--border)}.telemetry-cell:last-child{border-bottom:0}.lock-bar{align-items:stretch;flex-direction:column}.transcript-grid,.comparison-grid{grid-template-columns:1fr}.transcript-grid article{min-height:auto}.transcript-grid article+article{border-left:0;border-top:1px solid var(--border)}.section-grid{grid-template-columns:repeat(4,1fr)}.donut-wrap{grid-template-columns:1fr}.donut{width:min(230px,80%);margin:auto}.certificate-grid{grid-template-columns:1fr}.role-tab{font-size:.68rem;padding:.5rem}.wave-label{flex-direction:column}.panel-header{align-items:flex-start}.status-badge{white-space:normal} }
 @media (prefers-reduced-motion: reduce) { *,*::before,*::after { scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important; } }
 @media print { header,.DialogOverlay,button { display:none!important; }.certificate { border:2px solid var(--foreground); }.DialogContent { position:static!important; transform:none!important; max-width:none!important; box-shadow:none!important; } }
+
+/* ---------- Member B: Speech & AI Engine Control Panel (additive) ---------- */
+.mb-launcher {
+  position: fixed;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 40;
+  min-height: 2.75rem;
+  box-shadow: 0 10px 30px oklch(0 0 0 / 0.45);
+}
+.mb-drawer {
+  background: var(--panel);
+  border-left: 1px solid var(--border);
+}
+.mb-field {
+  width: 100%;
+  border-radius: 0.5rem;
+  border: 1px solid var(--border);
+  background: var(--panel-raised);
+  color: var(--foreground);
+  padding: 0.6rem 0.75rem;
+  font-size: 0.875rem;
+}
+.mb-field:focus-visible {
+  outline: 2px solid var(--signal);
+  outline-offset: 2px;
+}
+.mb-mode-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+.mb-mode-tab {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 3.75rem;
+  border-radius: 0.6rem;
+  border: 1px solid var(--border);
+  background: var(--panel-raised);
+  color: var(--muted-foreground);
+  padding: 0.55rem 0.4rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-align: center;
+  line-height: 1.15;
+}
+.mb-mode-tab[data-active="true"] {
+  border-color: var(--signal);
+  color: var(--signal);
+  background: color-mix(in oklch, var(--signal) 12%, transparent);
+}
+.mb-mode-tab:focus-visible {
+  outline: 2px solid var(--signal);
+  outline-offset: 2px;
+}
+.mb-service-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+.mb-service-grid li {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.2rem 0.6rem;
+  font-size: 0.7rem;
+  color: var(--muted-foreground);
+}
+.mb-service-grid li span {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 999px;
+  background: var(--alert);
+}
+.mb-service-grid li[data-ok="true"] span {
+  background: var(--success, var(--signal));
+}
+.mb-service-grid li small {
+  opacity: 0.7;
+}
+.mb-compare {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.mb-compare > div {
+  border: 1px solid var(--border);
+  border-radius: 0.65rem;
+  background: var(--panel-raised);
+  padding: 0.85rem;
+}
+.mb-output {
+  border: 1px solid var(--border);
+  border-radius: 0.65rem;
+  background: var(--panel-raised);
+  padding: 0.85rem;
+}
+.mb-error {
+  border: 1px solid var(--alert);
+  border-radius: 0.5rem;
+  background: color-mix(in oklch, var(--alert) 12%, transparent);
+  color: var(--alert);
+  padding: 0.6rem 0.75rem;
+  font-size: 0.8rem;
+}
+.mb-log {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  max-height: 16rem;
+  overflow-y: auto;
+  font-family: var(--font-mono, monospace);
+  font-size: 0.72rem;
+}
+.mb-log li {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 0.5rem;
+  align-items: baseline;
+  border: 1px solid var(--border);
+  border-radius: 0.45rem;
+  background: var(--panel-raised);
+  padding: 0.4rem 0.55rem;
+}
+.mb-log li[data-error="true"] {
+  border-color: var(--alert);
+  color: var(--alert);
+}
+.mb-log-provider {
+  color: var(--muted-foreground);
+}
+.mb-log li small {
+  grid-column: 1 / -1;
+  color: var(--muted-foreground);
+}
+@media (max-width: 640px) {
+  .mb-compare {
+    grid-template-columns: 1fr;
+  }
+}
+@media print {
+  .mb-launcher {
+    display: none;
+  }
+}
