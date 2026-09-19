@@ -629,8 +629,8 @@
 .hall-selected-readout span { display: block; color: color-mix(in oklab, var(--guided-ink) 58%, transparent); font-size: .72rem; }
 .hall-selected-readout strong { display: block; margin: .12rem 0; color: var(--guided-ink); }
 .hall-selected-readout blockquote { grid-column: 1 / -1; border-top: 1px solid color-mix(in oklab, var(--guided-accent) 16%, transparent); padding-top: .8rem; color: var(--guided-accent); font-family: "Instrument Serif", serif; font-size: 1.15rem; line-height: 1.4; }
-.hall-mini-person { display: grid; width: 2.5rem; height: 2.5rem; place-items: center; border: 1px solid var(--guided-accent); color: var(--guided-accent); }
-.hall-mini-person svg { width: 1.2rem; }
+.hall-mini-person { display: grid; width: 2.5rem; height: 2.5rem; place-items: center; border: 1.5px solid color-mix(in oklab, var(--guided-accent) 55%, transparent); border-radius: 50%; color: var(--guided-ink); background: radial-gradient(circle at 32% 26%, color-mix(in oklab, var(--guided-accent) 34%, var(--guided-surface)), color-mix(in oklab, var(--guided-accent) 14%, var(--guided-base))); }
+.hall-mini-person svg { width: 1.2rem; stroke-width: 2.25; }
 .hall-pin-button { min-height: 3.25rem; border-radius: .25rem; background: var(--guided-accent); color: var(--guided-base); }
 .event-hall {
   position: relative;
