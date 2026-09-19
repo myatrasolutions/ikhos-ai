@@ -37,7 +37,7 @@ import {
 import { blobToBase64, garbleTranscript, startMicRecording, type MicRecorder } from "@/lib/member-b-audio";
 import { useIkhosLanguage, type LanguageName } from "@/lib/ikhos-language";
 
-const LANGUAGES = ["Spanish", "Mandarin", "Hindi", "Vietnamese", "Arabic", "Nepali", "Swahili", "German"] as const;
+const LANGUAGES = ["Spanish", "Mandarin", "Hindi", "Vietnamese", "Arabic", "Nepali", "Swahili", "German", "French"] as const;
 type InputMode = "mock" | "live" | "ocr";
 
 type LogEntry = { id: string; label: string; provider: string; latencyMs: number; note?: string; error?: boolean };

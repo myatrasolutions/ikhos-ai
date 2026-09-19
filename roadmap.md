@@ -10,3 +10,7 @@
 - [ ] BLOCKED (user action): enable Speech-to-Text, Translation v3, Text-to-Speech and Vision on the Google Cloud project (currently 403) and raise the Gemini quota — until then those steps fall back to Lovable AI
 - [x] Autonomous isolation engine: auto mic capture on load, ranked ambient pitch sources, one-tap (or auto) pitch lock, continuous 6 s translate + speak loop, no activation buttons
 - [x] Slogan "Never Miss a Word That Matters." in the shared header and page/meta titles
+
+- Guided attendee flow (welcome -> pin speaker -> live transcript) with Advanced Command Center toggle.
+- French added end-to-end (DB check, language maps, TTS locale).
+- Speaker pin now tracks a stable Person id with a smoothed centroid so the lock holds.

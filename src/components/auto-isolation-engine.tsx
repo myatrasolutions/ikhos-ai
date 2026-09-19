@@ -47,6 +47,8 @@ export function AutoIsolationEngine({
   const [level, setLevel] = useState(0);
   const [sources, setSources] = useState<NoiseSource[]>([]);
   const [lockedHz, setLockedHz] = useState<number | null>(null);
+  const [lockedId, setLockedId] = useState<number | null>(null);
+  const [pinned, setPinned] = useState(false);
   const [status, setStatus] = useState("Sampling the room for distinct voices…");
   const [lastTranslation, setLastTranslation] = useState("");
 
@@ -54,11 +56,14 @@ export function AutoIsolationEngine({
   const chunksRef = useRef<Float32Array[]>([]);
   const sampleRateRef = useRef(48000);
   const lockedRef = useRef<number | null>(null);
+  /** Identity of the pinned person; survives frequency drift. */
+  const lockedIdRef = useRef<number | null>(null);
+  const pinnedRef = useRef(false);
   const busyRef = useRef(false);
   const highRef = useRef(false);
   const cleanupRef = useRef<(() => void) | null>(null);
   /** Stable "Person N" identities, matched to peaks by nearest frequency. */
-  const speakersRef = useRef<{ id: number; hz: number }[]>([]);
+  const speakersRef = useRef<{ id: number; hz: number; level: number }[]>([]);
   const languageRef = useRef(language);
   const playerRef = useRef<HTMLAudioElement | null>(null);
 
@@ -116,17 +121,31 @@ export function AutoIsolationEngine({
     }
   }, [runPipeline, synthesize]);
 
-  const lockPitch = useCallback((hz: number) => {
+  /**
+   * Lock on to one *person* (stable id), not a raw frequency reading.
+   * The tracked pitch keeps drifting slightly, so the filter follows the
+   * person's smoothed centroid while the identity stays pinned.
+   */
+  const lockSpeaker = useCallback((id: number, hz: number, pin = false) => {
+    lockedIdRef.current = id;
     lockedRef.current = hz;
+    if (pin) pinnedRef.current = true;
+    setLockedId(id);
     setLockedHz(hz);
+    setPinned((current) => current || pin);
     chunksRef.current = [];
     if (filterRef.current) {
       filterRef.current.frequency.value = hz;
-      filterRef.current.Q.value = LOCK_Q;
+      filterRef.current.Q.value = pinnedRef.current || pin ? LOCK_Q * 1.5 : LOCK_Q;
     }
     setState("running");
-    setStatus(`Locked on ${Math.round(hz)} Hz — translating continuously.`);
+    setStatus(
+      pin || pinnedRef.current
+        ? `Person ${id} pinned at ${Math.round(hz)} Hz — signature held, crowd stripped.`
+        : `Locked on Person ${id} (${Math.round(hz)} Hz) — translating continuously.`,
+    );
   }, []);
+  const lockPitch = lockSpeaker;
   const lockPitchRef = useRef(lockPitch);
   lockPitchRef.current = lockPitch;
 
@@ -214,19 +233,39 @@ export function AutoIsolationEngine({
           // Give every recurring frequency a friendly, stable identity.
           let known = speakersRef.current.find((entry) => Math.abs(entry.hz - hz) < SAME_SPEAKER_HZ);
           if (!known) {
-            known = { id: speakersRef.current.length + 1, hz };
+            known = { id: speakersRef.current.length + 1, hz, level: value };
             speakersRef.current.push(known);
           }
-          peaks.push({ hz, level: value, id: known.id, label: `Person ${known.id}` });
+          // Smooth the tracked centroid so the pinned person never jitters away.
+          known.hz = Math.round(known.hz * 0.82 + hz * 0.18);
+          known.level = value;
+          peaks.push({ hz: known.hz, level: value, id: known.id, label: `Person ${known.id}` });
         }
         peaks.sort((a, b) => b.level - a.level);
         const top = peaks.slice(0, 4);
-        setSources(top);
+        // Always keep the locked person visible, even during a quiet moment.
+        if (lockedIdRef.current !== null && !top.some((item) => item.id === lockedIdRef.current)) {
+          const held = speakersRef.current.find((entry) => entry.id === lockedIdRef.current);
+          if (held) top.unshift({ hz: held.hz, level: held.level, id: held.id, label: `Person ${held.id}` });
+        }
+        top.sort((a, b) => a.id - b.id);
+        setSources(top.slice(0, 5));
+
+        // Follow the pinned person's drifting centroid instead of re-picking a voice.
+        if (lockedIdRef.current !== null) {
+          const tracked = speakersRef.current.find((entry) => entry.id === lockedIdRef.current);
+          if (tracked && filterRef.current) {
+            filterRef.current.frequency.setTargetAtTime(tracked.hz, context.currentTime, 0.25);
+            filterRef.current.Q.value = pinnedRef.current ? LOCK_Q * 1.5 : LOCK_Q;
+            lockedRef.current = tracked.hz;
+            setLockedHz(tracked.hz);
+          }
+        }
 
         elapsed += 400;
         // Hands-free: lock the dominant voice automatically if nobody picked one.
         if (lockedRef.current === null && elapsed >= 2400 && top[0]) {
-          lockPitchRef.current(top[0].hz);
+          lockPitchRef.current(top[0].id, top[0].hz);
         } else if (lockedRef.current === null) {
           setState("listening");
         }
@@ -290,16 +329,16 @@ export function AutoIsolationEngine({
             ) : (
               sources.map((item) => (
                 <button
-                  key={item.hz}
+                  key={item.id}
                   type="button"
                   className="pitch-chip"
-                  data-active={lockedHz === item.hz}
-                  aria-pressed={lockedHz === item.hz}
+                  data-active={lockedId === item.id}
+                  aria-pressed={lockedId === item.id}
                   aria-label={`Isolate ${item.label} at ${item.hz} hertz — ${describePitch(item.hz)}`}
                   title={`${item.label} · ${describePitch(item.hz)}`}
-                  onClick={() => lockPitchRef.current(item.hz)}
+                  onClick={() => lockPitchRef.current(item.id, item.hz, pinnedRef.current)}
                 >
-                  {item.label} · {item.hz} Hz
+                  {item.label} · {item.hz} Hz{lockedId === item.id && pinned ? " · PINNED" : ""}
                   <span className="pitch-chip-meta">{describePitch(item.hz)}</span>
                 </button>
               ))
@@ -311,16 +350,21 @@ export function AutoIsolationEngine({
           <button
             type="button"
             className="pin-signature-button"
+            data-pinned={pinned}
             aria-label="Pin the strongest stage PA speaker signature and strip background crowd noise"
             title="Locks the loudest detected voice and suppresses everything outside its frequency band"
             disabled={sources.length === 0}
             onClick={() => {
-              const target = sources.find((item) => item.hz === lockedHz) ?? sources[0];
-              if (target) lockPitchRef.current(target.hz);
+              const target =
+                sources.find((item) => item.id === lockedId) ??
+                [...sources].sort((a, b) => b.level - a.level)[0];
+              if (target) lockPitchRef.current(target.id, target.hz, true);
             }}
           >
             <LockKeyhole className="size-4" aria-hidden="true" />
-            Pin Stage PA Speaker Signature
+            {pinned && lockedId !== null
+              ? `Signature Pinned · Person ${lockedId} · ${lockedHz ? Math.round(lockedHz) : 0} Hz`
+              : "Pin Stage PA Speaker Signature"}
           </button>
         ) : null}
 

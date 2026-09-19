@@ -14,6 +14,7 @@ export const IKHOS_LANGUAGES = [
   { name: "Nepali", code: "ne" },
   { name: "Swahili", code: "sw" },
   { name: "German", code: "de" },
+  { name: "French", code: "fr" },
 ] as const;
 
 export type LanguageName = (typeof IKHOS_LANGUAGES)[number]["name"];

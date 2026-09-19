@@ -32,12 +32,13 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
 import { AutoIsolationEngine } from "@/components/auto-isolation-engine";
+import { GuidedAttendeeFlow } from "@/components/guided-attendee-flow";
 import { IKHOS_LANGUAGES, useIkhosLanguage, type LanguageName } from "@/lib/ikhos-language";
 import { useServerFn } from "@tanstack/react-start";
 import { runSpeechPipeline } from "@/lib/member-b.functions";
 import { blobToBase64, startMicRecording, type MicRecorder } from "@/lib/member-b-audio";
 
-type Role = "attendee" | "venue";
+type Role = "guided" | "attendee" | "venue";
 type LockState = "idle" | "calibrating" | "locked";
 type Stream = Tables<"active_streams">;
 
@@ -64,6 +65,7 @@ const languageCopy: Record<string, string> = {
   Nepali: "हरेक सहभागीले मञ्चबाट साझा गरिएका विचारहरूमा स्पष्ट र तत्काल पहुँच पाउनुपर्छ।",
   Swahili: "Kila mhudhuriaji anastahili kupata mawazo yanayoshirikiwa jukwaani kwa uwazi na mara moja.",
   German: "Jeder Gast verdient klaren, sofortigen Zugang zu den Ideen, die auf der Bühne geteilt werden.",
+  French: "Chaque participant mérite un accès clair et immédiat aux idées partagées sur scène.",
 };
 
 const sections = [
@@ -158,7 +160,8 @@ function AppHeader({ role, setRole, highContrast, setHighContrast }: {
         </div>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
           <nav className="role-tabs" aria-label="Select workspace" role="tablist">
-            <button type="button" role="tab" aria-selected={role === "attendee"} className="role-tab" data-active={role === "attendee"} onClick={() => setRole("attendee")}>Attendee Live Stream</button>
+            <button type="button" role="tab" aria-selected={role === "guided"} className="role-tab" data-active={role === "guided"} onClick={() => setRole("guided")}>Attendee Live Stream</button>
+            <button type="button" role="tab" aria-selected={role === "attendee"} className="role-tab" data-active={role === "attendee"} onClick={() => setRole("attendee")}>Advanced Command Center</button>
             <button type="button" role="tab" aria-selected={role === "venue"} className="role-tab" data-active={role === "venue"} onClick={() => setRole("venue")}>Venue Management Portal <span className="hidden xl:inline">(B2B)</span></button>
           </nav>
           <OutputLanguageBadge />
@@ -487,7 +490,7 @@ function VenueView({ streams }: { streams: Stream[] }) {
 }
 
 export function IkhosDashboard() {
-  const [role, setRole] = useState<Role>("attendee");
+  const [role, setRole] = useState<Role>("guided");
   const [highContrast, setHighContrast] = useState(false);
   const [streams, setStreams] = useState<Stream[]>([]);
 
@@ -522,7 +525,9 @@ export function IkhosDashboard() {
     <TooltipProvider delayDuration={250}>
       <div className={highContrast ? "high-contrast min-h-dvh bg-background" : "min-h-dvh bg-background"}>
         <AppHeader role={role} setRole={setRole} highContrast={highContrast} setHighContrast={setHighContrast} />
-        {role === "attendee" ? <AttendeeView streams={streams} /> : <VenueView streams={streams} />}
+        {role === "guided" ? <GuidedAttendeeFlow streams={streams} /> : null}
+        {role === "attendee" ? <AttendeeView streams={streams} /> : null}
+        {role === "venue" ? <VenueView streams={streams} /> : null}
       </div>
     </TooltipProvider>
   );
