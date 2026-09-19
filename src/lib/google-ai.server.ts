@@ -61,7 +61,7 @@ export const CONTEXT_ADAPTERS = [
 ];
 
 function apiKey(): string {
-  const key = process.env["GOOGLE_CLOUD_API_KEY"];
+  const key = process.env["GOOGLE_CLOUD_API_KEY"] ?? process.env["GOOGLE_LANGUAGE_API_KEY"];
   if (!key) {
     throw new Error(
       "GOOGLE_CLOUD_API_KEY is not configured. Add it in the project secrets before running the pipeline.",

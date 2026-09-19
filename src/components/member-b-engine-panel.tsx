@@ -30,6 +30,7 @@ import {
   checkEngineHealth,
   runSlideOcr,
   runSpeechPipeline,
+  simulateLivePayload,
   summarizeSession,
   synthesizeTranslation,
 } from "@/lib/member-b.functions";
@@ -153,6 +154,7 @@ export function MemberBEnginePanel() {
   const synthesize = useServerFn(synthesizeTranslation);
   const summarize = useServerFn(summarizeSession);
   const health = useServerFn(checkEngineHealth);
+  const simulatePayload = useServerFn(simulateLivePayload);
 
   const [mode, setMode] = useState<InputMode>("mock");
   const [language, setLanguage] = useState<string>("Spanish");
@@ -211,6 +213,21 @@ export function MemberBEnginePanel() {
         },
       });
       mockIndexRef.current += 1;
+      setOriginal(result.original);
+      setTranslated(result.translated);
+      record(result.steps);
+    } catch (caught) {
+      handleFailure(caught);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const runSimulatedPayload = async () => {
+    setBusy(true);
+    setError("");
+    try {
+      const result = await simulatePayload({ data: { language: language as never } });
       setOriginal(result.original);
       setTranslated(result.translated);
       record(result.steps);
@@ -349,6 +366,16 @@ export function MemberBEnginePanel() {
               ))}
             </ul>
           ) : null}
+
+          <Button
+            className="min-h-11 w-full"
+            onClick={runSimulatedPayload}
+            disabled={busy}
+            aria-label="Simulate a live Google AI translation payload and publish it to the shared stream"
+          >
+            {busy ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Radio aria-hidden="true" />}
+            Simulate Live Google AI Translation Payload
+          </Button>
 
           <div>
             <p className="data-label">Audio / image input source</p>
