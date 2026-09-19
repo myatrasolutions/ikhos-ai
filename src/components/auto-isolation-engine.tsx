@@ -257,8 +257,9 @@ export function AutoIsolationEngine({
         // A speaker chosen on the event-hall map is already pinned. Attach the
         // closest detected voice identity to that target without switching away.
         if (lockedIdRef.current === null && initialTargetRef.current !== null && top.length) {
+          const targetHz = initialTargetRef.current;
           const nearest = [...top].sort(
-            (a, b) => Math.abs(a.hz - initialTargetRef.current!) - Math.abs(b.hz - initialTargetRef.current!),
+            (a, b) => Math.abs(a.hz - targetHz) - Math.abs(b.hz - targetHz),
           )[0];
           if (nearest) lockPitchRef.current(nearest.id, nearest.hz, true);
         }

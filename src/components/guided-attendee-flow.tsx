@@ -195,7 +195,7 @@ function LiveScreen({ streams, pinned }: { streams: Stream[]; pinned: HallSpeake
       </div>
 
       <div className="guided-card">
-        <AutoIsolationEngine language={language} initialTargetHz={pinned?.hz} />
+        <AutoIsolationEngine language={language} initialTargetHz={pinned?.hz ?? null} />
       </div>
 
       <div className="focus-telemetry" role="status">
