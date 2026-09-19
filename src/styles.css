@@ -374,3 +374,56 @@
     display: none;
   }
 }
+
+.output-language-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  padding: 0.4rem 0.7rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--muted-foreground);
+  background: color-mix(in oklab, var(--signal) 8%, transparent);
+}
+.output-language-badge svg { width: 1rem; height: 1rem; color: var(--signal); }
+.output-language-badge select {
+  background: transparent;
+  border: 0;
+  color: var(--signal);
+  font-weight: 700;
+  font-size: 0.8rem;
+  outline-offset: 3px;
+}
+.output-language-badge select:focus-visible { outline: 2px solid var(--signal); }
+
+.ambient-monitor {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: 0.9rem;
+  padding: 0.85rem 1rem;
+  margin-bottom: 1rem;
+  background: color-mix(in oklab, var(--panel) 70%, transparent);
+}
+.ambient-monitor > div { flex: 1 1 14rem; }
+.ambient-alert {
+  display: inline-block;
+  margin-left: 0.5rem;
+  color: var(--signal);
+  font-weight: 700;
+}
+
+.engine-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 1.25rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--border);
+}

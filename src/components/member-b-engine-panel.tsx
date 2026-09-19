@@ -413,7 +413,7 @@ export function MemberBEnginePanel() {
               id="mb-language"
               className="mb-field mt-2"
               value={language}
-              onChange={(event) => setLanguage(event.target.value)}
+              onChange={(event) => setLanguage(event.target.value as LanguageName)}
               aria-label="Target translation language"
             >
               {LANGUAGES.map((item) => (
