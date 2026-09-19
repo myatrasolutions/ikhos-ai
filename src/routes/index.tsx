@@ -22,7 +22,6 @@ function Index() {
     <IkhosLanguageProvider>
       <IkhosOnboarding />
       <IkhosDashboard />
-      <MemberBEnginePanel />
     </IkhosLanguageProvider>
   );
 }
