@@ -57,6 +57,8 @@ export function AutoIsolationEngine({
   const busyRef = useRef(false);
   const highRef = useRef(false);
   const cleanupRef = useRef<(() => void) | null>(null);
+  /** Stable "Person N" identities, matched to peaks by nearest frequency. */
+  const speakersRef = useRef<{ id: number; hz: number }[]>([]);
   const languageRef = useRef(language);
   const playerRef = useRef<HTMLAudioElement | null>(null);
 
@@ -208,8 +210,14 @@ export function AutoIsolationEngine({
           if (value < 60) continue;
           if (value <= spectrum[i - 1]! || value < spectrum[i + 1]!) continue;
           const hz = Math.round(i * binHz);
-          if (peaks.some((peak) => Math.abs(peak.hz - hz) < 45)) continue;
-          peaks.push({ hz, level: value });
+          if (peaks.some((peak) => Math.abs(peak.hz - hz) < SAME_SPEAKER_HZ)) continue;
+          // Give every recurring frequency a friendly, stable identity.
+          let known = speakersRef.current.find((entry) => Math.abs(entry.hz - hz) < SAME_SPEAKER_HZ);
+          if (!known) {
+            known = { id: speakersRef.current.length + 1, hz };
+            speakersRef.current.push(known);
+          }
+          peaks.push({ hz, level: value, id: known.id, label: `Person ${known.id}` });
         }
         peaks.sort((a, b) => b.level - a.level);
         const top = peaks.slice(0, 4);
