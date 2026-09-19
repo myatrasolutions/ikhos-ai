@@ -13,6 +13,7 @@ const LANGUAGES = [
   "Arabic",
   "Nepali",
   "Swahili",
+  "German",
 ] as const;
 
 const base64 = z.string().min(16, "Audio or image payload is empty.");

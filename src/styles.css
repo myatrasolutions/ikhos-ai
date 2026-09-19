@@ -471,3 +471,31 @@
   text-transform: uppercase;
   color: var(--muted-foreground);
 }
+
+/* Member B — pin the detected stage speaker signature */
+.pin-signature-button {
+  margin-top: 0.75rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2.75rem;
+  border-radius: 0.5rem;
+  border: 1px solid var(--signal, #06b6d4);
+  padding: 0 0.9rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--signal, #06b6d4);
+  background: color-mix(in oklab, #06b6d4 12%, transparent);
+  transition: background 150ms ease;
+}
+.pin-signature-button:hover:not(:disabled) {
+  background: color-mix(in oklab, #06b6d4 22%, transparent);
+}
+.pin-signature-button:disabled {
+  opacity: 0.45;
+}
+.pin-signature-button:focus-visible {
+  outline: 2px solid var(--signal, #06b6d4);
+  outline-offset: 2px;
+}

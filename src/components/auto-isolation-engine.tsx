@@ -8,12 +8,15 @@ import type { LanguageName } from "@/lib/ikhos-language";
 
 type EngineState = "starting" | "listening" | "running" | "denied";
 
-type NoiseSource = { hz: number; level: number };
+type NoiseSource = { hz: number; level: number; id: number; label: string };
 
 /** Length of every autonomous capture window, in milliseconds. */
 const WINDOW_MS = 6000;
 /** Bandpass sharpness around the locked speaker pitch. */
 const LOCK_Q = 8;
+
+/** How close two peaks must be (Hz) to count as the same speaker. */
+const SAME_SPEAKER_HZ = 45;
 
 function describePitch(hz: number): string {
   if (hz < 140) return "Low / male stage voice";
@@ -54,6 +57,8 @@ export function AutoIsolationEngine({
   const busyRef = useRef(false);
   const highRef = useRef(false);
   const cleanupRef = useRef<(() => void) | null>(null);
+  /** Stable "Person N" identities, matched to peaks by nearest frequency. */
+  const speakersRef = useRef<{ id: number; hz: number }[]>([]);
   const languageRef = useRef(language);
   const playerRef = useRef<HTMLAudioElement | null>(null);
 
@@ -205,8 +210,14 @@ export function AutoIsolationEngine({
           if (value < 60) continue;
           if (value <= spectrum[i - 1]! || value < spectrum[i + 1]!) continue;
           const hz = Math.round(i * binHz);
-          if (peaks.some((peak) => Math.abs(peak.hz - hz) < 45)) continue;
-          peaks.push({ hz, level: value });
+          if (peaks.some((peak) => Math.abs(peak.hz - hz) < SAME_SPEAKER_HZ)) continue;
+          // Give every recurring frequency a friendly, stable identity.
+          let known = speakersRef.current.find((entry) => Math.abs(entry.hz - hz) < SAME_SPEAKER_HZ);
+          if (!known) {
+            known = { id: speakersRef.current.length + 1, hz };
+            speakersRef.current.push(known);
+          }
+          peaks.push({ hz, level: value, id: known.id, label: `Person ${known.id}` });
         }
         peaks.sort((a, b) => b.level - a.level);
         const top = peaks.slice(0, 4);
@@ -284,16 +295,33 @@ export function AutoIsolationEngine({
                   className="pitch-chip"
                   data-active={lockedHz === item.hz}
                   aria-pressed={lockedHz === item.hz}
-                  aria-label={`Isolate the ${item.hz} hertz source — ${describePitch(item.hz)}`}
-                  title={describePitch(item.hz)}
+                  aria-label={`Isolate ${item.label} at ${item.hz} hertz — ${describePitch(item.hz)}`}
+                  title={`${item.label} · ${describePitch(item.hz)}`}
                   onClick={() => lockPitchRef.current(item.hz)}
                 >
-                  {item.hz} Hz
+                  {item.label} · {item.hz} Hz
                   <span className="pitch-chip-meta">{describePitch(item.hz)}</span>
                 </button>
               ))
             )}
           </div>
+        ) : null}
+
+        {state !== "denied" ? (
+          <button
+            type="button"
+            className="pin-signature-button"
+            aria-label="Pin the strongest stage PA speaker signature and strip background crowd noise"
+            title="Locks the loudest detected voice and suppresses everything outside its frequency band"
+            disabled={sources.length === 0}
+            onClick={() => {
+              const target = sources.find((item) => item.hz === lockedHz) ?? sources[0];
+              if (target) lockPitchRef.current(target.hz);
+            }}
+          >
+            <LockKeyhole className="size-4" aria-hidden="true" />
+            Pin Stage PA Speaker Signature
+          </button>
         ) : null}
 
         <p className="mt-2 text-xs text-muted-foreground">{status}</p>
