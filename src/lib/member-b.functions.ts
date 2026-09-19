@@ -217,7 +217,7 @@ export const summarizeSession = createServerFn({ method: "POST" })
 
 /** Reports which Google services are live vs. falling back to Gemini. */
 export const checkEngineHealth = createServerFn({ method: "GET" }).handler(async () => {
-  const key = process.env["GOOGLE_CLOUD_API_KEY"];
+  const key = process.env["GOOGLE_CLOUD_API_KEY"] ?? process.env["GOOGLE_LANGUAGE_API_KEY"];
   if (!key) return { configured: false, services: [] as Array<{ name: string; ok: boolean }> };
 
   const probes: Array<{ name: string; url: string; body: unknown }> = [
@@ -273,3 +273,49 @@ export const checkEngineHealth = createServerFn({ method: "GET" }).handler(async
 
   return { configured: true, services };
 });
+
+/**
+ * Member A consolidation: run the demo keynote line through the live Google /
+ * Gemini translation pipeline and insert the resulting payload into
+ * active_streams so Member A's realtime UI reacts immediately.
+ */
+const DEMO_KEYNOTE =
+  "Welcome to today's keynote presentation on AI accessibility and live event inclusion.";
+
+export const simulateLivePayload = createServerFn({ method: "POST" })
+  .inputValidator((input: unknown) =>
+    z.object({ language: z.enum(LANGUAGES).default("Spanish") }).parse(input ?? {}),
+  )
+  .handler(async ({ data }) => {
+    const { translateText } = await import("@/lib/google-ai.server");
+    const translation = await translateText(DEMO_KEYNOTE, data.language);
+    const latencyMs = 1380;
+
+    await publishToStream({
+      attendeeName: "Test Attendee (Member B)",
+      language: data.language,
+      original: DEMO_KEYNOTE,
+      translated: translation.value,
+      latencyMs,
+    });
+
+    return {
+      original: DEMO_KEYNOTE,
+      translated: translation.value,
+      latencyMs,
+      steps: [
+        {
+          step: "Translation (simulated payload)",
+          provider: translation.provider,
+          latencyMs: translation.latencyMs,
+          note: translation.fallbackReason,
+        },
+        {
+          step: "Supabase realtime insert",
+          provider: "active_streams",
+          latencyMs,
+          note: "noise_suppression_db -96.0 dB · status active",
+        },
+      ] as Array<{ step: string; provider: string; latencyMs: number; note?: string | undefined }>,
+    };
+  });
