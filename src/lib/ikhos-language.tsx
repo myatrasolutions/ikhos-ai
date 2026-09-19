@@ -13,6 +13,7 @@ export const IKHOS_LANGUAGES = [
   { name: "Arabic", code: "ar" },
   { name: "Nepali", code: "ne" },
   { name: "Swahili", code: "sw" },
+  { name: "German", code: "de" },
 ] as const;
 
 export type LanguageName = (typeof IKHOS_LANGUAGES)[number]["name"];

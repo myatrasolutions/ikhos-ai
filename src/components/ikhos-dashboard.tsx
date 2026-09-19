@@ -63,6 +63,7 @@ const languageCopy: Record<string, string> = {
   Arabic: "يستحق كل حاضر وصولاً واضحاً وفورياً إلى الأفكار التي تتم مشاركتها من على المسرح.",
   Nepali: "हरेक सहभागीले मञ्चबाट साझा गरिएका विचारहरूमा स्पष्ट र तत्काल पहुँच पाउनुपर्छ।",
   Swahili: "Kila mhudhuriaji anastahili kupata mawazo yanayoshirikiwa jukwaani kwa uwazi na mara moja.",
+  German: "Jeder Gast verdient klaren, sofortigen Zugang zu den Ideen, die auf der Bühne geteilt werden.",
 };
 
 const sections = [

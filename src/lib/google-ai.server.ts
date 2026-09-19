@@ -37,6 +37,7 @@ export const LANGUAGE_CODES: Record<string, string> = {
   Arabic: "ar",
   Nepali: "ne",
   Swahili: "sw",
+  German: "de",
 };
 
 export const TTS_VOICE_LOCALE: Record<string, string> = {
@@ -47,6 +48,7 @@ export const TTS_VOICE_LOCALE: Record<string, string> = {
   Arabic: "ar-XA",
   Nepali: "hi-IN",
   Swahili: "sw-KE",
+  German: "de-DE",
 };
 
 /** Dynamic context adapters applied to speech recognition. */
