@@ -154,6 +154,7 @@ export function MemberBEnginePanel() {
   const synthesize = useServerFn(synthesizeTranslation);
   const summarize = useServerFn(summarizeSession);
   const health = useServerFn(checkEngineHealth);
+  const simulatePayload = useServerFn(simulateLivePayload);
 
   const [mode, setMode] = useState<InputMode>("mock");
   const [language, setLanguage] = useState<string>("Spanish");
