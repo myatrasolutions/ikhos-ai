@@ -153,7 +153,7 @@ function AppHeader({ role, setRole, highContrast, setHighContrast }: {
       <div className="mx-auto flex max-w-[1560px] flex-col gap-4 px-4 py-4 lg:flex-row lg:items-center lg:justify-between lg:px-8">
         <div className="flex min-w-0 items-center gap-3">
           <div className="brand-mark" aria-hidden="true"><Waves /></div>
-          <div className="min-w-0"><p className="font-display text-2xl font-bold text-foreground">Ikhos <span className="text-signal">AI</span></p><p className="truncate text-xs text-muted-foreground">Real-Time Acoustic Isolation & Live Translation for Public Venues</p></div>
+          <div className="min-w-0"><p className="font-display text-2xl font-bold text-foreground">Ikhos <span className="text-signal">AI</span></p><p className="truncate text-xs text-signal">Never Miss a Word That Matters.</p></div>
         </div>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
           <nav className="role-tabs" aria-label="Select workspace" role="tablist">
