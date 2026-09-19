@@ -31,6 +31,11 @@ import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
+import { AmbientNoiseMonitor } from "@/components/ambient-noise-monitor";
+import { IKHOS_LANGUAGES, useIkhosLanguage, type LanguageName } from "@/lib/ikhos-language";
+import { useServerFn } from "@tanstack/react-start";
+import { runSpeechPipeline } from "@/lib/member-b.functions";
+import { blobToBase64, startMicRecording, type MicRecorder } from "@/lib/member-b-audio";
 
 type Role = "attendee" | "venue";
 type LockState = "idle" | "calibrating" | "locked";
@@ -155,6 +160,7 @@ function AppHeader({ role, setRole, highContrast, setHighContrast }: {
             <button type="button" role="tab" aria-selected={role === "attendee"} className="role-tab" data-active={role === "attendee"} onClick={() => setRole("attendee")}>Attendee Live Stream</button>
             <button type="button" role="tab" aria-selected={role === "venue"} className="role-tab" data-active={role === "venue"} onClick={() => setRole("venue")}>Venue Management Portal <span className="hidden xl:inline">(B2B)</span></button>
           </nav>
+          <OutputLanguageBadge />
           <div className="flex items-center justify-between gap-3 border-l-0 border-border pl-0 sm:border-l sm:pl-4">
             <label htmlFor="contrast-mode" className="text-xs font-semibold text-foreground">WCAG High Contrast</label>
             <Switch id="contrast-mode" checked={highContrast} onCheckedChange={setHighContrast} aria-label="Toggle WCAG high contrast mode" />
