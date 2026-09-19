@@ -134,6 +134,37 @@ async function lovableTranscribe(audioBase64: string, mimeType: string): Promise
   return (parsed.text ?? "").trim();
 }
 
+function bytesToBase64(bytes: Uint8Array): string {
+  let binary = "";
+  for (let i = 0; i < bytes.length; i += 1) binary += String.fromCharCode(bytes[i]!);
+  return btoa(binary);
+}
+
+/** Lovable AI speech synthesis — used when the Google key is blocked or out of quota. */
+async function lovableSynthesize(text: string): Promise<{ audioBase64: string; mimeType: string }> {
+  const response = await fetch("https://ai.gateway.lovable.dev/v1/audio/speech", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Lovable-API-Key": lovableKey(),
+      "X-Lovable-AIG-SDK": "fetch",
+    },
+    body: JSON.stringify({
+      model: "google/gemini-3.1-flash-tts-preview",
+      input: text,
+      voice: "Kore",
+      response_format: "wav",
+    }),
+  });
+  if (!response.ok) {
+    const detail = await response.text();
+    throw new Error(`Speech synthesis unavailable (${response.status}): ${shortReason(detail, detail.slice(0, 180))}`);
+  }
+  const buffer = new Uint8Array(await response.arrayBuffer());
+  const mimeType = response.headers.get("content-type")?.split(";")[0] ?? "audio/wav";
+  return { audioBase64: bytesToBase64(buffer), mimeType };
+}
+
 /** Lovable AI text/vision reasoning — used when the Google key is out of quota. */
 async function callLovableAI(parts: GeminiPart[], systemInstruction?: string): Promise<string> {
   const content = parts.map((part) =>
