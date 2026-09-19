@@ -570,3 +570,9 @@
   font-size: 0.9rem; color: var(--foreground); border-top: 1px solid var(--border); padding-top: 1rem;
 }
 .focus-telemetry span { display: inline-flex; align-items: center; gap: 0.4rem; }
+
+.pin-signature-button[data-pinned="true"] {
+  border-color: oklch(0.72 0.15 165);
+  background: color-mix(in oklab, oklch(0.72 0.15 165) 18%, transparent);
+  color: var(--foreground);
+}
