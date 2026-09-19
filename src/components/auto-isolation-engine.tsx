@@ -8,12 +8,15 @@ import type { LanguageName } from "@/lib/ikhos-language";
 
 type EngineState = "starting" | "listening" | "running" | "denied";
 
-type NoiseSource = { hz: number; level: number };
+type NoiseSource = { hz: number; level: number; id: number; label: string };
 
 /** Length of every autonomous capture window, in milliseconds. */
 const WINDOW_MS = 6000;
 /** Bandpass sharpness around the locked speaker pitch. */
 const LOCK_Q = 8;
+
+/** How close two peaks must be (Hz) to count as the same speaker. */
+const SAME_SPEAKER_HZ = 45;
 
 function describePitch(hz: number): string {
   if (hz < 140) return "Low / male stage voice";
