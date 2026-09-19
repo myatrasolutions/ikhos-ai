@@ -158,9 +158,24 @@ export function AutoIsolationEngine({
     const start = async () => {
       let stream: MediaStream;
       try {
-        stream = await navigator.mediaDevices.getUserMedia({
-          audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
-        });
+        // Raw far-field capture: disable browser near-field suppression (AEC/AGC/NS)
+        // so distant stage voices are not dropped before our DSP pipeline sees them.
+        const constraints: MediaStreamConstraints = {
+          audio: {
+            echoCancellation: false,
+            noiseSuppression: false,
+            autoGainControl: false,
+            channelCount: { ideal: 2 },
+          },
+        };
+        try {
+          stream = await navigator.mediaDevices.getUserMedia(constraints);
+        } catch {
+          // Some MEMS hardware rejects stereo requests — fall back to mono.
+          stream = await navigator.mediaDevices.getUserMedia({
+            audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
+          });
+        }
       } catch {
         if (!disposed) {
           setState("denied");
@@ -178,9 +193,24 @@ export function AutoIsolationEngine({
       sampleRateRef.current = context.sampleRate;
 
       const source = context.createMediaStreamSource(stream);
+
+      // Far-field normalization: compensate the 1/r^2 SPL drop-off so a voice
+      // 6–12 ft away (adjacent desk / stage) reaches processing threshold, while
+      // the compressor prevents the near-field voice from clipping the ADC range.
+      const farFieldBoost = context.createGain();
+      farFieldBoost.gain.value = 4; // ~+12 dB for distant speakers
+      const compressor = context.createDynamicsCompressor();
+      compressor.threshold.setValueAtTime(-24, context.currentTime);
+      compressor.knee.setValueAtTime(30, context.currentTime);
+      compressor.ratio.setValueAtTime(12, context.currentTime);
+      compressor.attack.setValueAtTime(0.003, context.currentTime);
+      compressor.release.setValueAtTime(0.25, context.currentTime);
+      source.connect(farFieldBoost);
+      farFieldBoost.connect(compressor);
+
       const analyser = context.createAnalyser();
       analyser.fftSize = 2048;
-      source.connect(analyser);
+      compressor.connect(analyser);
 
       // Isolation chain: everything the engine transcribes passes the bandpass.
       const filter = context.createBiquadFilter();
@@ -188,7 +218,7 @@ export function AutoIsolationEngine({
       filter.frequency.value = initialTargetRef.current ?? 180;
       filter.Q.value = initialTargetRef.current === null ? 1 : LOCK_Q * 1.5;
       filterRef.current = filter;
-      source.connect(filter);
+      compressor.connect(filter);
 
       const processor = context.createScriptProcessor(4096, 1, 1);
       processor.onaudioprocess = (event) => {
