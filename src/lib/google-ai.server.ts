@@ -408,7 +408,14 @@ export async function synthesizeSpeech(
   });
   const body = await response.text();
   if (!response.ok) {
-    throw new Error(shortReason(body, `Speech synthesis unavailable (${response.status})`));
+    // Google key blocked or out of quota — fall back to Lovable AI speech.
+    const lovable = await lovableSynthesize(text);
+    return {
+      value: lovable,
+      provider: "lovable-ai-tts",
+      latencyMs: Date.now() - started,
+      fallbackReason: fallbackReason ?? shortReason(body, `Google speech unavailable (${response.status})`),
+    };
   }
   const parsed = JSON.parse(body) as {
     candidates?: Array<{
