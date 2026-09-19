@@ -35,6 +35,7 @@ import {
   synthesizeTranslation,
 } from "@/lib/member-b.functions";
 import { blobToBase64, garbleTranscript, startMicRecording, type MicRecorder } from "@/lib/member-b-audio";
+import { useIkhosLanguage, type LanguageName } from "@/lib/ikhos-language";
 
 const LANGUAGES = ["Spanish", "Mandarin", "Hindi", "Vietnamese", "Arabic", "Nepali", "Swahili"] as const;
 type InputMode = "mock" | "live" | "ocr";
@@ -157,7 +158,8 @@ export function MemberBEnginePanel() {
   const simulatePayload = useServerFn(simulateLivePayload);
 
   const [mode, setMode] = useState<InputMode>("mock");
-  const [language, setLanguage] = useState<string>("Spanish");
+  // Shared with Member A's attendee stream so both surfaces stay in sync.
+  const { language, setLanguage } = useIkhosLanguage();
   const [busy, setBusy] = useState(false);
   const [recording, setRecording] = useState(false);
   const [original, setOriginal] = useState("");
