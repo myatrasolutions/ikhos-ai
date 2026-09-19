@@ -1,0 +1,308 @@
+import { useCallback, useEffect, useRef, useState } from "react";
+import { AudioLines, Loader2, LockKeyhole, MicOff } from "lucide-react";
+import { useServerFn } from "@tanstack/react-start";
+
+import { encodeWav, blobToBase64 } from "@/lib/member-b-audio";
+import { runSpeechPipeline, synthesizeTranslation } from "@/lib/member-b.functions";
+import type { LanguageName } from "@/lib/ikhos-language";
+
+type EngineState = "starting" | "listening" | "running" | "denied";
+
+type NoiseSource = { hz: number; level: number };
+
+/** Length of every autonomous capture window, in milliseconds. */
+const WINDOW_MS = 6000;
+/** Bandpass sharpness around the locked speaker pitch. */
+const LOCK_Q = 8;
+
+function describePitch(hz: number): string {
+  if (hz < 140) return "Low / male stage voice";
+  if (hz < 220) return "Mid / stage PA";
+  if (hz < 320) return "High / female stage voice";
+  return "Crowd & ambient chatter";
+}
+
+/**
+ * Continuous, hands-free isolation engine.
+ *
+ * Captures every ambient source the moment the screen opens, ranks the distinct
+ * pitch signatures in the room, locks on to one of them (strongest by default,
+ * or whichever the attendee picks), and then keeps translating and speaking the
+ * isolated voice in the attendee's language without any further interaction.
+ */
+export function AutoIsolationEngine({
+  language,
+  onHighNoise,
+}: {
+  language: LanguageName;
+  onHighNoise?: (high: boolean) => void;
+}) {
+  const runPipeline = useServerFn(runSpeechPipeline);
+  const synthesize = useServerFn(synthesizeTranslation);
+
+  const [state, setState] = useState<EngineState>("starting");
+  const [level, setLevel] = useState(0);
+  const [sources, setSources] = useState<NoiseSource[]>([]);
+  const [lockedHz, setLockedHz] = useState<number | null>(null);
+  const [status, setStatus] = useState("Sampling the room for distinct voices…");
+  const [lastTranslation, setLastTranslation] = useState("");
+
+  const filterRef = useRef<BiquadFilterNode | null>(null);
+  const chunksRef = useRef<Float32Array[]>([]);
+  const sampleRateRef = useRef(48000);
+  const lockedRef = useRef<number | null>(null);
+  const busyRef = useRef(false);
+  const highRef = useRef(false);
+  const cleanupRef = useRef<(() => void) | null>(null);
+  const languageRef = useRef(language);
+  const playerRef = useRef<HTMLAudioElement | null>(null);
+
+  useEffect(() => {
+    languageRef.current = language;
+  }, [language]);
+
+  /** Send one captured window through translation + speech synthesis. */
+  const processWindow = useCallback(async () => {
+    if (busyRef.current || lockedRef.current === null) return;
+    const chunks = chunksRef.current;
+    chunksRef.current = [];
+    const samples = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
+    if (samples < sampleRateRef.current) return; // less than a second of audio
+
+    let peak = 0;
+    for (const chunk of chunks) for (const sample of chunk) peak = Math.max(peak, Math.abs(sample));
+    if (peak < 0.01) return; // silence inside the locked band
+
+    busyRef.current = true;
+    try {
+      const blob = encodeWav(chunks, sampleRateRef.current);
+      const result = await runPipeline({
+        data: {
+          source: "live",
+          language: languageRef.current,
+          attendeeName: "Active Attendee",
+          audioBase64: await blobToBase64(blob),
+          audioMimeType: "audio/wav",
+          publish: true,
+        },
+      });
+
+      if (!result.original) {
+        setStatus("Listening — no speech in the locked voice band yet.");
+        return;
+      }
+
+      setLastTranslation(result.translated);
+      setStatus(`Translated in ${Math.round(result.totalLatencyMs)} ms · ${languageRef.current}`);
+
+      const speech = await synthesize({
+        data: { text: result.translated, language: languageRef.current },
+      });
+      const audio = playerRef.current ?? new Audio();
+      playerRef.current = audio;
+      audio.src = `data:${speech.mimeType};base64,${speech.audioBase64}`;
+      await audio.play().catch(() => {
+        setStatus("Translation published — tap anywhere to allow spoken playback.");
+      });
+    } catch (caught) {
+      setStatus(caught instanceof Error ? caught.message : "That window could not be processed.");
+    } finally {
+      busyRef.current = false;
+    }
+  }, [runPipeline, synthesize]);
+
+  const lockPitch = useCallback((hz: number) => {
+    lockedRef.current = hz;
+    setLockedHz(hz);
+    chunksRef.current = [];
+    if (filterRef.current) {
+      filterRef.current.frequency.value = hz;
+      filterRef.current.Q.value = LOCK_Q;
+    }
+    setState("running");
+    setStatus(`Locked on ${Math.round(hz)} Hz — translating continuously.`);
+  }, []);
+  const lockPitchRef = useRef(lockPitch);
+  lockPitchRef.current = lockPitch;
+
+  useEffect(() => {
+    let disposed = false;
+
+    const start = async () => {
+      let stream: MediaStream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
+        });
+      } catch {
+        if (!disposed) {
+          setState("denied");
+          setStatus("Microphone access is needed to isolate the stage voice.");
+        }
+        return;
+      }
+      if (disposed) {
+        stream.getTracks().forEach((track) => track.stop());
+        return;
+      }
+
+      const context = new AudioContext();
+      await context.resume().catch(() => {});
+      sampleRateRef.current = context.sampleRate;
+
+      const source = context.createMediaStreamSource(stream);
+      const analyser = context.createAnalyser();
+      analyser.fftSize = 2048;
+      source.connect(analyser);
+
+      // Isolation chain: everything the engine transcribes passes the bandpass.
+      const filter = context.createBiquadFilter();
+      filter.type = "bandpass";
+      filter.frequency.value = 180;
+      filter.Q.value = 1;
+      filterRef.current = filter;
+      source.connect(filter);
+
+      const processor = context.createScriptProcessor(4096, 1, 1);
+      processor.onaudioprocess = (event) => {
+        if (lockedRef.current === null) return;
+        chunksRef.current.push(new Float32Array(event.inputBuffer.getChannelData(0)));
+      };
+      filter.connect(processor);
+      const mute = context.createGain();
+      mute.gain.value = 0;
+      processor.connect(mute);
+      mute.connect(context.destination);
+
+      const spectrum = new Uint8Array(analyser.frequencyBinCount);
+      const waveform = new Uint8Array(analyser.fftSize);
+      const binHz = context.sampleRate / analyser.fftSize;
+      let elapsed = 0;
+
+      const detect = window.setInterval(() => {
+        analyser.getByteTimeDomainData(waveform);
+        let sum = 0;
+        for (const sample of waveform) {
+          const centered = (sample - 128) / 128;
+          sum += centered * centered;
+        }
+        const rms = Math.sqrt(sum / waveform.length);
+        const db = Math.max(30, Math.min(110, 30 + 20 * Math.log10(Math.max(rms, 0.0005)) + 80));
+        setLevel(Math.round(db));
+        const isHigh = db > 65;
+        if (isHigh !== highRef.current) {
+          highRef.current = isHigh;
+          onHighNoise?.(isHigh);
+        }
+
+        // Rank distinct pitch peaks between 80 Hz and 1 kHz.
+        analyser.getByteFrequencyData(spectrum);
+        const first = Math.max(1, Math.floor(80 / binHz));
+        const last = Math.min(spectrum.length - 2, Math.floor(1000 / binHz));
+        const peaks: NoiseSource[] = [];
+        for (let i = first; i <= last; i += 1) {
+          const value = spectrum[i]!;
+          if (value < 60) continue;
+          if (value <= spectrum[i - 1]! || value < spectrum[i + 1]!) continue;
+          const hz = Math.round(i * binHz);
+          if (peaks.some((peak) => Math.abs(peak.hz - hz) < 45)) continue;
+          peaks.push({ hz, level: value });
+        }
+        peaks.sort((a, b) => b.level - a.level);
+        const top = peaks.slice(0, 4);
+        setSources(top);
+
+        elapsed += 400;
+        // Hands-free: lock the dominant voice automatically if nobody picked one.
+        if (lockedRef.current === null && elapsed >= 2400 && top[0]) {
+          lockPitchRef.current(top[0].hz);
+        } else if (lockedRef.current === null) {
+          setState("listening");
+        }
+      }, 400);
+
+      const cycle = window.setInterval(() => {
+        void processWindow();
+      }, WINDOW_MS);
+
+      cleanupRef.current = () => {
+        window.clearInterval(detect);
+        window.clearInterval(cycle);
+        processor.onaudioprocess = null;
+        processor.disconnect();
+        filter.disconnect();
+        source.disconnect();
+        stream.getTracks().forEach((track) => track.stop());
+        void context.close();
+      };
+    };
+
+    void start();
+    return () => {
+      disposed = true;
+      cleanupRef.current?.();
+      cleanupRef.current = null;
+    };
+  }, [onHighNoise, processWindow]);
+
+  return (
+    <div className="ambient-monitor" role="status" aria-live="polite">
+      {state === "denied" ? (
+        <MicOff className="text-destructive" aria-hidden="true" />
+      ) : state === "running" ? (
+        <LockKeyhole className="text-signal" aria-hidden="true" />
+      ) : (
+        <AudioLines className="text-signal" aria-hidden="true" />
+      )}
+      <div className="min-w-0 flex-1">
+        <p className="data-label">
+          Autonomous Isolation Engine:{" "}
+          {state === "denied"
+            ? "Microphone blocked"
+            : state === "running"
+              ? `Locked · ${lockedHz ? Math.round(lockedHz) : 0} Hz`
+              : "Capturing ambient sources"}
+        </p>
+        <p className="mt-1 font-mono text-sm">
+          {state === "denied" ? "Allow the microphone to start automatically." : `${level} dB venue floor`}
+          {highRef.current ? (
+            <span className="ambient-alert">[High Crowd Noise Detected — Pitch Lock Enabled]</span>
+          ) : null}
+        </p>
+
+        {state !== "denied" ? (
+          <div className="pitch-picker" role="group" aria-label="Detected pitch signatures in the room">
+            {sources.length === 0 ? (
+              <span className="text-xs text-muted-foreground">
+                <Loader2 className="inline size-3 animate-spin" aria-hidden="true" /> Scanning ambient sources…
+              </span>
+            ) : (
+              sources.map((item) => (
+                <button
+                  key={item.hz}
+                  type="button"
+                  className="pitch-chip"
+                  data-active={lockedHz === item.hz}
+                  aria-pressed={lockedHz === item.hz}
+                  aria-label={`Isolate the ${item.hz} hertz source — ${describePitch(item.hz)}`}
+                  title={describePitch(item.hz)}
+                  onClick={() => lockPitchRef.current(item.hz)}
+                >
+                  {item.hz} Hz
+                  <span className="pitch-chip-meta">{describePitch(item.hz)}</span>
+                </button>
+              ))
+            )}
+          </div>
+        ) : null}
+
+        <p className="mt-2 text-xs text-muted-foreground">{status}</p>
+        {lastTranslation ? (
+          <p className="mt-1 text-xs text-signal" lang={language}>
+            {lastTranslation}
+          </p>
+        ) : null}
+      </div>
+    </div>
+  );
+}
