@@ -367,6 +367,16 @@ export function MemberBEnginePanel() {
             </ul>
           ) : null}
 
+          <Button
+            className="min-h-11 w-full"
+            onClick={runSimulatedPayload}
+            disabled={busy}
+            aria-label="Simulate a live Google AI translation payload and publish it to the shared stream"
+          >
+            {busy ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Radio aria-hidden="true" />}
+            Simulate Live Google AI Translation Payload
+          </Button>
+
           <div>
             <p className="data-label">Audio / image input source</p>
             <div className="mb-mode-tabs mt-2" role="tablist" aria-label="Select pipeline input source">
