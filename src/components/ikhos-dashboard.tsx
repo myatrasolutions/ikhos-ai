@@ -8,6 +8,7 @@ import {
   FileCheck2,
   Headphones,
   Languages,
+  Loader2,
   LockKeyhole,
   Mic2,
   Radio,
@@ -32,6 +33,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
 
 type Role = "attendee" | "venue";
+type LockState = "idle" | "calibrating" | "locked";
 type Stream = Tables<"active_streams">;
 
 const fallbackStream: Stream = {
@@ -67,6 +69,8 @@ const sections = [
 
 function Waveform({ isolated, cutoff }: { isolated?: boolean; cutoff: number }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const cutoffRef = useRef(cutoff);
+  cutoffRef.current = cutoff;
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -75,6 +79,7 @@ function Waveform({ isolated, cutoff }: { isolated?: boolean; cutoff: number }) 
     if (!context) return;
     let frame = 0;
     let animation = 0;
+
     const draw = () => {
       const ratio = window.devicePixelRatio || 1;
       const width = canvas.clientWidth;
@@ -87,24 +92,41 @@ function Waveform({ isolated, cutoff }: { isolated?: boolean; cutoff: number }) 
       const colors = getComputedStyle(canvas);
       context.clearRect(0, 0, width, height);
       context.strokeStyle = colors.getPropertyValue(isolated ? "--wave-isolated" : "--wave-raw").trim();
-      context.lineWidth = isolated ? 2.5 : 1.8;
+
+      // 0 = no suppression (0 dB, raw crowd chaos), 1 = full suppression (-96 dB)
+      const suppression = Math.min(1, Math.abs(cutoffRef.current) / 96);
+      const chaos = 1 - suppression;
+
+      context.lineWidth = isolated ? 2.5 : 1.4 + chaos * 1.1;
       context.beginPath();
-      const suppression = Math.abs(cutoff) / 96;
-      const amplitude = isolated ? 18 + suppression * 17 : 32 - suppression * 20;
-      for (let x = 0; x <= width; x += 3) {
-        const signal = isolated
-          ? Math.sin(x * 0.055 + frame) * 0.55 + Math.sin(x * 0.021 + frame * 0.6) * 0.45
-          : Math.sin(x * 0.14 + frame * 1.4) * 0.35 + Math.random() * 0.65 - 0.32;
-        const y = height / 2 + signal * amplitude;
+
+      const step = isolated ? 3 : 1.5;
+      const isolatedAmplitude = 16 + suppression * 18;
+      // Raw: extreme spiky amplitude at 0 dB, flattened toward stage-clean at -96 dB
+      const rawAmplitude = 4 + chaos * 40;
+
+      for (let x = 0; x <= width; x += step) {
+        let signal: number;
+        if (isolated) {
+          signal = Math.sin(x * 0.055 + frame) * 0.55 + Math.sin(x * 0.021 + frame * 0.6) * 0.45;
+        } else {
+          const base = Math.sin(x * 0.05 + frame * 0.9) * 0.5 + Math.sin(x * 0.019 + frame * 0.5) * 0.3;
+          const highFreq = Math.sin(x * (0.35 + chaos * 0.9) + frame * (2 + chaos * 6)) * chaos;
+          const jitter = (Math.random() * 2 - 1) * chaos;
+          const spike = chaos > 0.2 && Math.random() < 0.04 * chaos ? (Math.random() * 2 - 1) * 1.6 * chaos : 0;
+          signal = base * (0.35 + suppression * 0.65) + highFreq * 0.55 + jitter * 0.6 + spike;
+        }
+        const y = height / 2 + signal * (isolated ? isolatedAmplitude : rawAmplitude);
         if (x === 0) context.moveTo(x, y); else context.lineTo(x, y);
       }
       context.stroke();
       frame += 0.045;
       animation = requestAnimationFrame(draw);
     };
+
     draw();
     return () => cancelAnimationFrame(animation);
-  }, [cutoff, isolated]);
+  }, [isolated]);
 
   return <canvas ref={canvasRef} className="h-24 w-full" aria-hidden="true" />;
 }
@@ -143,25 +165,101 @@ function AppHeader({ role, setRole, highContrast, setHighContrast }: {
   );
 }
 
+function PaAcousticLock() {
+  const [lockState, setLockState] = useState<LockState>("idle");
+
+  useEffect(() => {
+    if (lockState !== "calibrating") return;
+    const timer = window.setTimeout(() => setLockState("locked"), 1200);
+    return () => window.clearTimeout(timer);
+  }, [lockState]);
+
+  return (
+    <>
+      <div className="lock-bar">
+        <div><p className="data-label">PA Acoustic Lock</p><p className="mt-1 text-sm text-muted-foreground">Calibrate to the stage loudspeaker array</p></div>
+        {lockState === "locked" ? (
+          <span className="lock-badge" role="status"><LockKeyhole aria-hidden="true" />[ PA Acoustic Fingerprint Locked - 95% Crowd Noise Stripped ]</span>
+        ) : (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant={lockState === "calibrating" ? "default" : "outline"}
+                className={lockState === "calibrating" ? "calibrating-button min-h-11" : "min-h-11"}
+                aria-pressed={lockState !== "idle"}
+                aria-live="polite"
+                disabled={lockState === "calibrating"}
+                onClick={() => setLockState("calibrating")}
+              >
+                {lockState === "calibrating" ? <Loader2 className="animate-spin" /> : <LockKeyhole />}
+                {lockState === "calibrating" ? "Calibrating Stage Acoustic Centroid..." : "Pin Stage PA Speaker Signature"}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Locks beamforming onto the primary stage audio source</TooltipContent>
+          </Tooltip>
+        )}
+      </div>
+      {lockState === "locked" && (
+        <div className="lock-confirmation" role="status"><Check />Beamforming centroid pinned to stage PA array · crowd rejection 95%</div>
+      )}
+    </>
+  );
+}
+
+function MicComparisonDialog() {
+  return (
+    <Dialog>
+      <DialogTrigger asChild>
+        <Button variant="outline" className="min-h-11 w-full sm:w-auto"><Smartphone />Compare vs Standard Phone Mic Output</Button>
+      </DialogTrigger>
+      <DialogContent className="max-h-[90dvh] max-w-3xl overflow-y-auto">
+        <DialogHeader>
+          <p className="eyebrow">Side-by-side capture test</p>
+          <DialogTitle className="font-display text-2xl">Microphone Output Comparison</DialogTitle>
+          <DialogDescription>Same moment of stage audio captured through two different signal paths.</DialogDescription>
+        </DialogHeader>
+        <div className="comparison-grid !m-0">
+          <div>
+            <p className="data-label text-alert">Standard Unfiltered Smartphone Microphone</p>
+            <p className="garbled-copy">
+              <s>[Unclear crowd noise]</s> ...welcome to... <s>[cheering]</s>... 2026 graduation...
+            </p>
+          </div>
+          <div>
+            <p className="data-label text-signal">Ikhos Mobile DSP Feed (Clean)</p>
+            <p className="clean-copy">“Welcome to the 2026 commencement ceremony.”</p>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function AttendeeView({ streams }: { streams: Stream[] }) {
   const [cutoff, setCutoff] = useState(-96);
   const [language, setLanguage] = useState("Spanish");
-  const [locked, setLocked] = useState(false);
-  const [compare, setCompare] = useState(false);
   const transcriptRef = useRef<HTMLDivElement>(null);
-  const selectedStream = streams.find((stream) => stream.selected_language === language) ?? streams[0] ?? fallbackStream;
+
+  const latest = streams[0] ?? fallbackStream;
+  const entries = useMemo(() => {
+    const matching = streams.filter((stream) => stream.selected_language === language);
+    const pool = (matching.length ? matching : streams.slice(0, 1));
+    return (pool.length ? pool : [fallbackStream]).slice(0, 12).reverse();
+  }, [streams, language]);
 
   useEffect(() => {
     transcriptRef.current?.scrollTo({ top: transcriptRef.current.scrollHeight, behavior: "smooth" });
-  }, [selectedStream.translated_transcript]);
+  }, [entries]);
+
+  const suppressionPercent = Math.min(100, (Math.abs(Number(latest.noise_suppression_db)) / 96) * 100);
 
   return (
     <div className="page-shell">
       <section aria-labelledby="live-status-heading">
         <div className="section-heading"><div><p className="eyebrow"><span className="live-dot" />Live session · Grand Auditorium</p><h1 id="live-status-heading">Attendee Acoustic Command</h1></div><span className="status-badge"><Check />Signal verified</span></div>
-        <div className="telemetry-grid">
-          <Stat icon={Activity} label="End-to-end latency" value={`${(selectedStream.latency_ms / 1000).toFixed(1)} s`} accent />
-          <Stat icon={Waves} label="Noise suppression" value="95.4%" />
+        <div className="telemetry-grid" aria-live="polite">
+          <Stat icon={Activity} label="End-to-end latency" value={`${(latest.latency_ms / 1000).toFixed(2)} s`} accent />
+          <Stat icon={Waves} label="Noise suppression" value={`${suppressionPercent.toFixed(1)}%`} />
           <Stat icon={CircleDot} label="Directional beamform lock" value="ACTIVE" accent />
           <Stat icon={Antenna} label="Hardware pairing" value="Ikhos Receiver #4092" />
         </div>
@@ -171,11 +269,7 @@ function AttendeeView({ streams }: { streams: Stream[] }) {
       <div className="workspace-grid">
         <section className="panel" aria-labelledby="isolation-heading">
           <div className="panel-header"><div><p className="eyebrow">DSP channel 04</p><h2 id="isolation-heading">Acoustic Isolation Control Center</h2></div><span className="status-badge"><Radio />Receiving</span></div>
-          <div className="lock-bar">
-            <div><p className="data-label">PA Acoustic Lock</p><p className="mt-1 text-sm text-muted-foreground">Calibrate to the stage loudspeaker array</p></div>
-            <Tooltip><TooltipTrigger asChild><Button variant={locked ? "default" : "outline"} className="min-h-11" aria-pressed={locked} onClick={() => setLocked(!locked)}><LockKeyhole />Pin Stage PA Speaker Signature</Button></TooltipTrigger><TooltipContent>Locks beamforming onto the primary stage audio source</TooltipContent></Tooltip>
-          </div>
-          {locked && <div className="lock-confirmation" role="status"><Check />[PA Acoustic Fingerprint Locked — 95% Crowd Noise Stripped]</div>}
+          <PaAcousticLock />
           <div className="wave-stack">
             <div className="wave-panel raw-wave"><div className="wave-label"><span>Raw Venue Input</span><span>Garbled Ambient Noise</span></div><Waveform cutoff={cutoff} /></div>
             <div className="wave-panel isolated-wave"><div className="wave-label"><span>Isolated Stage Speaker Signal</span><span>Voice focus / clean</span></div><Waveform cutoff={cutoff} isolated /></div>
@@ -190,11 +284,24 @@ function AttendeeView({ streams }: { streams: Stream[] }) {
         <section className="panel" aria-labelledby="translation-heading">
           <div className="panel-header"><div><p className="eyebrow">Neural translation channel</p><h2 id="translation-heading">Real-Time Translation Stream</h2></div><label className="language-select"><Languages aria-hidden="true" /><span className="sr-only">Translation language</span><select value={language} onChange={(event) => setLanguage(event.target.value)} aria-label="Select translation language">{Object.keys(languageCopy).map((item) => <option key={item}>{item}</option>)}</select><ChevronDown aria-hidden="true" /></label></div>
           <div ref={transcriptRef} className="transcript-grid" aria-live="polite">
-            <article><p className="data-label">Stage Speaker (English Raw)</p><p className="transcript-copy">“{selectedStream.original_transcript || fallbackStream.original_transcript}”</p><span className="speaker-chip"><Mic2 />Stage left · Live</span></article>
-            <article><p className="data-label text-signal">Ikhos Live Neural Translation · {language}</p><p className="transcript-copy translated">“{selectedStream.selected_language === language ? selectedStream.translated_transcript : languageCopy[language]}”</p><span className="speaker-chip"><Languages />98.7% confidence</span></article>
+            <article>
+              <p className="data-label">Stage Speaker (English Raw)</p>
+              {entries.map((entry) => (
+                <p key={`o-${entry.id}`} className="transcript-copy">“{entry.original_transcript || fallbackStream.original_transcript}”</p>
+              ))}
+              <span className="speaker-chip"><Mic2 />Stage left · Live</span>
+            </article>
+            <article>
+              <p className="data-label text-signal">Ikhos Live Neural Translation · {language}</p>
+              {entries.map((entry) => (
+                <p key={`t-${entry.id}`} className="transcript-copy translated">
+                  “{entry.selected_language === language ? entry.translated_transcript : languageCopy[language]}”
+                </p>
+              ))}
+              <span className="speaker-chip"><Languages />98.7% confidence</span>
+            </article>
           </div>
-          <div className="mt-4 border-t border-border pt-4"><Button variant="outline" className="min-h-11 w-full sm:w-auto" aria-expanded={compare} onClick={() => setCompare(!compare)}><Smartphone />Compare vs Standard Phone Mic Output</Button></div>
-          {compare && <div className="comparison-grid" role="region" aria-label="Microphone output comparison"><div><p className="data-label text-alert">Standard Unfiltered Mic</p><p>“Wel—[crowd noise]—system—[inaudible]—stage...”</p></div><div><p className="data-label text-signal">Ikhos Mobile DSP Feed</p><p>“Every attendee deserves clear, immediate access.”</p></div></div>}
+          <div className="mt-4 border-t border-border pt-4"><MicComparisonDialog /></div>
         </section>
       </div>
     </div>
@@ -229,7 +336,7 @@ function VenueView({ streams }: { streams: Stream[] }) {
     <div className="page-shell">
       <section aria-labelledby="venue-heading">
         <div className="section-heading"><div><p className="eyebrow"><span className="live-dot" />Venue network · Grand Auditorium</p><h1 id="venue-heading">Executive Venue Overview</h1></div><span className="status-badge"><ShieldCheck />All systems nominal</span></div>
-        <div className="telemetry-grid"><Stat icon={Headphones} label="Connected receivers" value="2,847" accent /><Stat icon={Languages} label="Active language streams" value={String(Math.max(activeCount, 7))} /><Stat icon={Activity} label="Average latency" value={`${(avgLatency / 1000).toFixed(2)} s`} /><Stat icon={ShieldCheck} label="ADA compliance rating" value="99.4%" accent /></div>
+        <div className="telemetry-grid" aria-live="polite"><Stat icon={Headphones} label="Connected receivers" value="2,847" accent /><Stat icon={Languages} label="Active language streams" value={String(Math.max(activeCount, 7))} /><Stat icon={Activity} label="Average latency" value={`${(avgLatency / 1000).toFixed(2)} s`} /><Stat icon={ShieldCheck} label="ADA compliance rating" value="99.4%" accent /></div>
       </section>
       <div className="venue-grid">
         <section className="panel venue-map-panel" aria-labelledby="map-heading"><div className="panel-header"><div><p className="eyebrow">Live spatial telemetry</p><h2 id="map-heading">Receiver Density · Sections 101–212</h2></div><div className="map-legend"><span />Low <span />High</div></div>
@@ -257,7 +364,23 @@ export function IkhosDashboard() {
       if (mounted && data) setStreams(data);
     };
     void load();
-    const channel = supabase.channel("active-streams-dashboard").on("postgres_changes", { event: "*", schema: "public", table: "active_streams" }, () => void load()).subscribe();
+
+    const channel = supabase
+      .channel("active-streams-dashboard")
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "active_streams" }, (payload) => {
+        const row = payload.new as Stream;
+        setStreams((current) => [row, ...current.filter((item) => item.id !== row.id)]);
+      })
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "active_streams" }, (payload) => {
+        const row = payload.new as Stream;
+        setStreams((current) => current.map((item) => (item.id === row.id ? row : item)));
+      })
+      .on("postgres_changes", { event: "DELETE", schema: "public", table: "active_streams" }, (payload) => {
+        const removed = payload.old as Partial<Stream>;
+        setStreams((current) => current.filter((item) => item.id !== removed.id));
+      })
+      .subscribe();
+
     return () => { mounted = false; void supabase.removeChannel(channel); };
   }, []);
 
