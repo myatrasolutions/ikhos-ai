@@ -418,12 +418,51 @@ export async function synthesizeSpeech(
   const inline = parsed.candidates?.[0]?.content?.parts?.find((part) => part.inlineData)?.inlineData;
   if (!inline?.data) throw new Error("Speech synthesis returned no audio.");
 
+  const mime = inline.mimeType ?? "audio/L16;rate=24000";
+  // Gemini returns raw signed 16-bit PCM, which no browser can play directly.
+  // Wrap it in a WAV container so <audio> accepts it.
+  const isPcm = /L16|pcm/i.test(mime);
+  const rate = Number(/rate=(\d+)/.exec(mime)?.[1] ?? 24000);
+
   return {
-    value: { audioBase64: inline.data, mimeType: inline.mimeType ?? "audio/L16;rate=24000" },
+    value: isPcm
+      ? { audioBase64: pcmToWavBase64(inline.data, rate), mimeType: "audio/wav" }
+      : { audioBase64: inline.data, mimeType: mime },
     provider: "gemini-2.5-flash-tts",
     latencyMs: Date.now() - started,
     fallbackReason,
   };
+}
+
+/** Wrap raw 16-bit mono PCM (base64) in a WAV header and return base64. */
+function pcmToWavBase64(pcmBase64: string, sampleRate: number): string {
+  const pcm = base64ToBytes(pcmBase64);
+  const out = new Uint8Array(44 + pcm.length);
+  const view = new DataView(out.buffer);
+  const writeString = (pos: number, value: string) => {
+    for (let i = 0; i < value.length; i += 1) view.setUint8(pos + i, value.charCodeAt(i));
+  };
+  writeString(0, "RIFF");
+  view.setUint32(4, 36 + pcm.length, true);
+  writeString(8, "WAVE");
+  writeString(12, "fmt ");
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, 1, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * 2, true);
+  view.setUint16(32, 2, true);
+  view.setUint16(34, 16, true);
+  writeString(36, "data");
+  view.setUint32(40, pcm.length, true);
+  out.set(pcm, 44);
+
+  let binary = "";
+  const step = 0x8000;
+  for (let i = 0; i < out.length; i += step) {
+    binary += String.fromCharCode(...out.subarray(i, i + step));
+  }
+  return btoa(binary);
 }
 
 /* ------------------------------------------------------------------ */
