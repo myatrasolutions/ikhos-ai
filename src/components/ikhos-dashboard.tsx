@@ -171,6 +171,131 @@ function AppHeader({ role, setRole, highContrast, setHighContrast }: {
   );
 }
 
+function OutputLanguageBadge() {
+  const { language, setLanguage } = useIkhosLanguage();
+  return (
+    <label className="output-language-badge">
+      <Languages aria-hidden="true" />
+      <span>Selected Output:</span>
+      <select
+        value={language}
+        onChange={(event) => setLanguage(event.target.value as LanguageName)}
+        aria-label="Change your selected output language"
+      >
+        {IKHOS_LANGUAGES.map((item) => (
+          <option key={item.code} value={item.name}>
+            {item.name}
+          </option>
+        ))}
+      </select>
+      <ChevronDown aria-hidden="true" />
+    </label>
+  );
+}
+
+/** Member B's speech pipeline, driving Member A's live transcript stream. */
+function LiveEngineControls({ language }: { language: LanguageName }) {
+  const runPipeline = useServerFn(runSpeechPipeline);
+  const [busy, setBusy] = useState(false);
+  const [recording, setRecording] = useState(false);
+  const [status, setStatus] = useState("");
+  const [error, setError] = useState("");
+  const recorderRef = useRef<MicRecorder | null>(null);
+  const mockIndexRef = useRef(0);
+
+  const runChunk = async () => {
+    setBusy(true);
+    setError("");
+    try {
+      const result = await runPipeline({
+        data: { source: "mock", language, attendeeName: "Active Attendee", mockIndex: mockIndexRef.current, publish: true },
+      });
+      mockIndexRef.current += 1;
+      setStatus(`Published in ${Math.round(result.totalLatencyMs)} ms · ${language}`);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "The translation engine could not process that chunk.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const toggleMic = async () => {
+    setError("");
+    if (recording) {
+      setRecording(false);
+      setBusy(true);
+      try {
+        const blob = await recorderRef.current!.stop();
+        recorderRef.current = null;
+        if (blob.size < 2048) throw new Error("That capture was empty — please try again.");
+        const result = await runPipeline({
+          data: {
+            source: "live",
+            language,
+            attendeeName: "Active Attendee",
+            audioBase64: await blobToBase64(blob),
+            audioMimeType: "audio/wav",
+            publish: true,
+          },
+        });
+        setStatus(
+          result.published
+            ? `Live capture translated in ${Math.round(result.totalLatencyMs)} ms`
+            : "No intelligible speech detected in that capture.",
+        );
+      } catch (caught) {
+        setError(caught instanceof Error ? caught.message : "The live capture could not be processed.");
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
+    try {
+      recorderRef.current = await startMicRecording();
+      setRecording(true);
+    } catch {
+      setError("Microphone access is needed to capture the stage feed.");
+    }
+  };
+
+  return (
+    <div className="engine-strip">
+      <div className="min-w-0">
+        <p className="data-label">Live Translation Engine</p>
+        <p className="mt-1 text-xs text-muted-foreground" aria-live="polite">
+          {error || status || `Isolated audio → transcription → ${language} translation → live stream`}
+        </p>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button className="min-h-11" onClick={runChunk} disabled={busy || recording}>
+              {busy && !recording ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Radio aria-hidden="true" />}
+              Process stage chunk
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Runs a stage audio chunk through the translation pipeline</TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant={recording ? "destructive" : "outline"}
+              className="min-h-11"
+              onClick={toggleMic}
+              disabled={busy && !recording}
+              aria-pressed={recording}
+            >
+              <Mic2 aria-hidden="true" />
+              {recording ? "Stop & translate" : "Capture live mic"}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Captures the isolated microphone feed and translates it</TooltipContent>
+        </Tooltip>
+      </div>
+    </div>
+  );
+}
+
 function PaAcousticLock() {
   const [lockState, setLockState] = useState<LockState>("idle");
 
@@ -243,7 +368,7 @@ function MicComparisonDialog() {
 
 function AttendeeView({ streams }: { streams: Stream[] }) {
   const [cutoff, setCutoff] = useState(-96);
-  const [language, setLanguage] = useState("Spanish");
+  const { language, setLanguage } = useIkhosLanguage();
   const transcriptRef = useRef<HTMLDivElement>(null);
 
   const latest = streams[0] ?? fallbackStream;
@@ -275,6 +400,7 @@ function AttendeeView({ streams }: { streams: Stream[] }) {
       <div className="workspace-grid">
         <section className="panel" aria-labelledby="isolation-heading">
           <div className="panel-header"><div><p className="eyebrow">DSP channel 04</p><h2 id="isolation-heading">Acoustic Isolation Control Center</h2></div><span className="status-badge"><Radio />Receiving</span></div>
+          <AmbientNoiseMonitor onHighNoise={(high) => setCutoff(high ? -96 : -72)} />
           <PaAcousticLock />
           <div className="wave-stack">
             <div className="wave-panel raw-wave"><div className="wave-label"><span>Raw Venue Input</span><span>Garbled Ambient Noise</span></div><Waveform cutoff={cutoff} /></div>
@@ -285,10 +411,11 @@ function AttendeeView({ streams }: { streams: Stream[] }) {
             <input id="noise-cutoff" className="range-control" type="range" min="-96" max="0" step="1" value={cutoff} onChange={(event) => setCutoff(Number(event.target.value))} aria-label="Directional noise cutoff in decibels" />
             <div className="flex justify-between text-xs text-muted-foreground"><span>−96 dB · Full isolation</span><span>0 dB · Raw crowd audio</span></div>
           </div>
+          <LiveEngineControls language={language} />
         </section>
 
         <section className="panel" aria-labelledby="translation-heading">
-          <div className="panel-header"><div><p className="eyebrow">Neural translation channel</p><h2 id="translation-heading">Real-Time Translation Stream</h2></div><label className="language-select"><Languages aria-hidden="true" /><span className="sr-only">Translation language</span><select value={language} onChange={(event) => setLanguage(event.target.value)} aria-label="Select translation language">{Object.keys(languageCopy).map((item) => <option key={item}>{item}</option>)}</select><ChevronDown aria-hidden="true" /></label></div>
+          <div className="panel-header"><div><p className="eyebrow">Neural translation channel</p><h2 id="translation-heading">Real-Time Translation Stream</h2></div><label className="language-select"><Languages aria-hidden="true" /><span className="sr-only">Translation language</span><select value={language} onChange={(event) => setLanguage(event.target.value as LanguageName)} aria-label="Select translation language">{Object.keys(languageCopy).map((item) => <option key={item}>{item}</option>)}</select><ChevronDown aria-hidden="true" /></label></div>
           <div ref={transcriptRef} className="transcript-grid" aria-live="polite">
             <article>
               <p className="data-label">Stage Speaker (English Raw)</p>
