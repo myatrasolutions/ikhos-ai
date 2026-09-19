@@ -218,7 +218,7 @@ export function AutoIsolationEngine({
       filter.frequency.value = initialTargetRef.current ?? 180;
       filter.Q.value = initialTargetRef.current === null ? 1 : LOCK_Q * 1.5;
       filterRef.current = filter;
-      source.connect(filter);
+      compressor.connect(filter);
 
       const processor = context.createScriptProcessor(4096, 1, 1);
       processor.onaudioprocess = (event) => {
