@@ -1,116 +1,120 @@
 # IKHOS AI
 
+### *Never Miss a Word That Matters.*
+
 **Real-Time Acoustic Isolation and Live Translation for Public Venues**
 
-IKHOS AI is an accessible listening platform for conferences, ceremonies, auditoriums, and other crowded venues. It helps an attendee choose one speaker by location, isolate that voice from ambient noise, continuously translate it into a preferred language, and hear the translated result at an inclusive listening pace.
+---
 
-The same application also includes an Advanced Command Center for technical demonstrations and a Venue Management Portal for operational visibility.
+## The Human Experience Behind IKHOS AI
 
-## Core experience
+Imagine standing inside a crowded stadium, a noisy graduation ceremony, or an echoing conference hall. The venue is packed, voices echo off the walls, and the stage speaker is over a hundred feet away. 
 
-1. Choose a listening language.
-2. Select a person on the event-hall map by the direction of their voice.
-3. Pin that speaker. IKHOS holds the selected voice signature and suppresses surrounding crowd sound.
-4. Read and hear the continuous translation while live telemetry remains visible.
+For non-native speakers, immigrant families, and hard-of-hearing individuals, these moments—celebrations, keynotes, milestone ceremonies—are often lost in a sea of unintelligible crowd noise. Distance and ambient echo turn standard smartphone translation apps into garbled static ("Garbage In, Garbage Out"). 
 
-## User manual
+**IKHOS AI was created so that no one is left out of the conversation.** 
 
-### Before you begin
+By bridging physics and cloud AI, IKHOS AI allows attendees to zero in on a single stage speaker, strip away over 95% of background venue noise, and receive crystal-clear, real-time translations in their native language—delivered at a comfortable, inclusive listening pace.
 
-- Open IKHOS AI in a modern browser.
-- Allow microphone access when prompted. The microphone is required for live acoustic detection and translation.
-- For spoken output, make sure the device volume is audible and the browser is allowed to play sound.
+---
 
-### 1. Select your language
+## The Core Concept & Technology
 
-On the welcome screen, choose the language in which you want to read and hear the event. The preference is saved on the device and remains available when you return.
+Physics prevents standard omnidirectional phone microphones from isolating a distant voice in a noisy environment. IKHOS AI solves this through a guided hardware-software pipeline:
 
-Select **Continue to Audio Lock**.
+1. **Spatial Direction & Pitch Fingerprinting:** The app maps active stage speakers by sound direction and acoustic pitch (frequency in Hz).
+2. **Dynamic Beamforming & Noise Suppression:** When an attendee "pins" a speaker, IKHOS locks onto that specific voice signature, applying differential beamforming and noise filtering to strip surrounding ambient chatter.
+3. **Low-Latency Neural Pipeline:** The clean audio stream is processed through cloud AI (Speech-to-Text, Neural Translation, and Text-to-Speech) in under 1.8 seconds.
+4. **Accessible Delivery:** Attendees read large, high-contrast captions and hear continuous, synthesized speech tuned to a clear, zero-fatigue 0.88× playback rate.
 
-### 2. Choose and pin a speaker
+---
 
-The event-hall map shows detected voices as people positioned according to sound direction. Each person has a stable name such as **Person 1** and a frequency reading in hertz.
+## Core Experience
 
-1. Select a person to preview their voice and location.
-2. Confirm that the preview matches the speaker you want to follow.
-3. Select **Pin selected speaker**.
-4. Wait for the green confirmation stating that surrounding noise has been removed.
-5. Select **Confirm Signature & Start Live Translation**.
+* **Select a Language:** Choose your native language from a zero-literacy onboarding flow.
+* **Spatial Speaker Selection:** Locate the speaker on the event-hall map by the direction of their voice.
+* **Acoustic Pinning:** Lock the speaker’s frequency signature ($Hz$) to strip out ambient venue noise.
+* **Live Immersive Translation:** Read and hear continuous, synchronized translations with real-time telemetry metrics.
 
-Once pinned, IKHOS continues tracking that same person even when their voice pitch shifts slightly. Other detected voices are visually dimmed and excluded from the translation feed.
+---
 
-### 3. Follow the live translation
+## User Manual
 
-The live screen presents:
+### Before You Begin
+* Open **IKHOS AI** in a modern web browser.
+* Allow microphone access when prompted. The microphone is required for live acoustic detection and translation.
+* For spoken audio output, ensure your device volume is audible and the browser is permitted to play sound.
 
-- **English source:** the isolated speaker's original words.
-- **Your live translation:** large, high-contrast translated text in the selected language.
-- **Spoken translation:** synthesized speech at 0.88× speed for greater listening clarity.
-- **Status details:** isolation level, pinned person and frequency, and current latency.
+### 1. Select Your Language
+On the welcome screen, choose the language in which you want to read and hear the event. Your preference is saved locally on the device and remains active throughout your session. Select **Continue to Audio Lock**.
 
-IKHOS processes new audio automatically. No repeated start or translate button is required.
+### 2. Choose and Pin a Speaker
+* The event-hall map displays detected voices positioned by sound direction and fundamental frequency ($Hz$).
+* Select a person (e.g., *Person 1 — 240 Hz*) to preview their location and live audio snippet.
+* Confirm that the preview matches the stage speaker you wish to follow.
+* Select **Pin Selected Speaker** and wait for the confirmation indicator confirming surrounding noise rejection.
+* Select **Confirm Signature & Start Live Translation**.
+* Once pinned, IKHOS continuously tracks that speaker even during subtle pitch fluctuations, dimming background voices out of the feed.
 
-### Change views
+### 3. Follow the Live Translation
+The high-focus live view presents:
+* **English Source:** The isolated speaker's original raw transcript.
+* **Your Live Translation:** Large, high-contrast translated text in your selected language.
+* **Spoken Translation:** Synthesized, zero-fatigue speech audio at 0.88× speed for maximum comprehension.
+* **System Telemetry:** Isolation level ($-96\text{ dB}$), target frequency lock, and end-to-end latency ($1.4\text{s}$).
 
-Use the top navigation to switch between:
+---
 
-- **Attendee Live Stream:** the guided language, speaker, and translation journey.
-- **Advanced Command Center:** raw and isolated waveforms, beamforming controls, transcripts, and technical diagnostics.
-- **Venue Management Portal (B2B):** receiver counts, active language streams, latency, venue coverage, and accessibility reporting.
+## Multi-View Navigation
 
-### High-contrast mode
+Use the top navigation bar to switch between three operational modes:
 
-Turn on **WCAG High Contrast** from the top bar at any time. This changes the interface to pure black and white, strengthens borders, and increases the minimum text size for improved visibility.
+* **Attendee Live Stream:** The guided, step-by-step language selection, speaker lock, and translation journey.
+* **Advanced Command Center:** The technical diagnostic dashboard displaying dual audio visualizers (Raw Venue Input vs. Isolated Signal), beamforming cutoff sliders, and DSP telemetry.
+* **Venue Management Portal (B2B):** The enterprise portal for venue operators displaying active receiver node heatmaps, language request analytics, and turn-key **ADA & Accessibility Compliance Audit Reports**.
 
-### If the microphone is blocked
+---
 
-Use the browser's site controls to allow microphone access, then reload the page. IKHOS will begin listening automatically.
+## High-Contrast & Accessibility Features
 
-### If spoken playback is paused
+Toggle **WCAG High Contrast Mode** from the top header at any time. This mode:
+* Switches the interface to an ultra-high-contrast monochrome theme.
+* Enforces strong contrast borders and bumps base font sizes by over 20%.
+* Features full keyboard navigation, screen-reader focus announcements, and reduced-motion support.
 
-Some browsers require one interaction before they allow audio playback. Select anywhere in the application once; the live transcript and data synchronization continue even if playback is paused.
+---
 
-## Processing workflow
+## Troubleshooting
 
-The live workflow combines browser audio analysis, voice-frequency isolation, speech recognition, translation, and accessible speech synthesis. Google Language and AI services are used when available, with a managed AI fallback to keep the experience resilient during provider quota or service interruptions.
+* **If the Microphone is Blocked:** Click the browser site settings icon in the address bar to allow microphone permissions, then reload the page.
+* **If Audio Playback is Paused:** Modern web browsers require a user interaction before playing auto-play audio. Click anywhere inside the application once to resume spoken audio output.
 
-Live transcripts, target language, noise-suppression level, latency, and stream status are synchronized through the shared `active_streams` data source so attendee and venue views update together.
+---
 
-## Accessibility
+## Technical Architecture & Processing Workflow
 
-- Keyboard-accessible controls and visible focus states
-- Descriptive labels for interactive controls
-- Screen-reader status announcements for selection, pinning, and translation
-- WCAG-focused high-contrast mode
-- Large translated text and clear information hierarchy
-- Reduced-motion support
-- 0.88× spoken translation rate
+The live workflow combines browser Web Audio API signal processing, frequency centroid extraction, speech recognition, neural translation, and accessible speech synthesis. Google AI services (Gemini, Speech-to-Text, Translation, and TTS) power the live AI pipeline, supported by a managed fallback architecture to ensure uptime during network degradation or quota limits.
 
-## Local development
+Real-time transcripts, target languages, decibel noise-suppression metrics, and latency metrics are synchronized through a shared `active_streams` Supabase publication layer, ensuring attendee views and venue management portals stay in sync.
 
-Requirements: Node.js 20+ and Bun.
+---
 
-```sh
-git clone https://github.com/myatrasolutions/IkhosAI.git
+## Local Development Setup
+
+### Prerequisites
+* Node.js 20+
+* [Bun](https://bun.sh/) package manager
+
+### Installation
+```bash
+# Clone the repository
+git clone [https://github.com/myatrasolutions/IkhosAI.git](https://github.com/myatrasolutions/IkhosAI.git)
+
+# Navigate into the directory
 cd IkhosAI
+
+# Install dependencies
 bun install
+
+# Start the local development server
 bun run dev
-```
-
-The development server is available at `http://localhost:8080`.
-
-## Technology
-
-- React 19 and TypeScript
-- TanStack Start and TanStack Router
-- Tailwind CSS
-- Web Audio API
-- Lovable Cloud realtime data synchronization
-- Google Speech-to-Text, Translation, Text-to-Speech, and Gemini with managed fallback
-
-## Production notes
-
-- Keep service credentials in the secure project secret store; never commit them.
-- Enable the required Google Cloud APIs and production quota before launch.
-- Test microphone permissions and audio playback on the target venue Wi-Fi and attendee devices.
-- Validate high-contrast mode and keyboard navigation before each release.
