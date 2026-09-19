@@ -30,6 +30,7 @@ import {
   checkEngineHealth,
   runSlideOcr,
   runSpeechPipeline,
+  simulateLivePayload,
   summarizeSession,
   synthesizeTranslation,
 } from "@/lib/member-b.functions";
