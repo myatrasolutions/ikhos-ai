@@ -151,9 +151,13 @@ async function lovableSynthesize(text: string): Promise<{ audioBase64: string; m
     },
     body: JSON.stringify({
       model: "google/gemini-3.1-flash-tts-preview",
-      input: text,
-      voice: "Kore",
-      response_format: "wav",
+      contents: [
+        { role: "user", parts: [{ text: `Read this clearly and slowly for an accessibility audience: ${text}` }] },
+      ],
+      generationConfig: {
+        responseModalities: ["AUDIO"],
+        speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: "Kore" } } },
+      },
     }),
   });
   if (!response.ok) {
