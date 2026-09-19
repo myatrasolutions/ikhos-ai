@@ -1,6 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { IkhosDashboard } from "@/components/ikhos-dashboard";
-import { MemberBEnginePanel } from "@/components/member-b-engine-panel";
 import { IkhosOnboarding } from "@/components/ikhos-onboarding";
 import { IkhosLanguageProvider } from "@/lib/ikhos-language";
 
@@ -23,7 +22,6 @@ function Index() {
     <IkhosLanguageProvider>
       <IkhosOnboarding />
       <IkhosDashboard />
-      <MemberBEnginePanel />
     </IkhosLanguageProvider>
   );
 }
