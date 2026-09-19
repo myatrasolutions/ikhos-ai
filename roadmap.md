@@ -14,3 +14,7 @@
 - Guided attendee flow (welcome -> pin speaker -> live transcript) with Advanced Command Center toggle.
 - French added end-to-end (DB check, language maps, TTS locale).
 - Speaker pin now tracks a stable Person id with a smoothed centroid so the lock holds.
+- [ ] Replace the calibration bar graph with an immersive event-hall person selector and explicit pin action.
+- [ ] Restyle the live translation experience in the selected Charcoal & Jade editorial direction.
+- [ ] Add a high-level introduction and user manual to README.md.
+- [ ] Create a pull request to https://github.com/myatrasolutions/IkhosAI.
