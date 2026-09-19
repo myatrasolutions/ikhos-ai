@@ -116,17 +116,31 @@ export function AutoIsolationEngine({
     }
   }, [runPipeline, synthesize]);
 
-  const lockPitch = useCallback((hz: number) => {
+  /**
+   * Lock on to one *person* (stable id), not a raw frequency reading.
+   * The tracked pitch keeps drifting slightly, so the filter follows the
+   * person's smoothed centroid while the identity stays pinned.
+   */
+  const lockSpeaker = useCallback((id: number, hz: number, pin = false) => {
+    lockedIdRef.current = id;
     lockedRef.current = hz;
+    if (pin) pinnedRef.current = true;
+    setLockedId(id);
     setLockedHz(hz);
+    setPinned((current) => current || pin);
     chunksRef.current = [];
     if (filterRef.current) {
       filterRef.current.frequency.value = hz;
-      filterRef.current.Q.value = LOCK_Q;
+      filterRef.current.Q.value = pinnedRef.current || pin ? LOCK_Q * 1.5 : LOCK_Q;
     }
     setState("running");
-    setStatus(`Locked on ${Math.round(hz)} Hz — translating continuously.`);
+    setStatus(
+      pin || pinnedRef.current
+        ? `Person ${id} pinned at ${Math.round(hz)} Hz — signature held, crowd stripped.`
+        : `Locked on Person ${id} (${Math.round(hz)} Hz) — translating continuously.`,
+    );
   }, []);
+  const lockPitch = lockSpeaker;
   const lockPitchRef = useRef(lockPitch);
   lockPitchRef.current = lockPitch;
 
