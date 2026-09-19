@@ -91,28 +91,146 @@ type GeminiPart =
   | { text: string }
   | { inline_data: { mime_type: string; data: string } };
 
-async function callGemini(parts: GeminiPart[], systemInstruction?: string): Promise<string> {
-  const response = await fetch(`${GEN_LANG}/${GEMINI_MODEL}:generateContent?key=${apiKey()}`, {
+function lovableKey(): string {
+  const key = process.env["LOVABLE_API_KEY"];
+  if (!key) throw new Error("LOVABLE_API_KEY is not configured.");
+  return key;
+}
+
+function base64ToBytes(base64: string): Uint8Array {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+}
+
+/** Lovable AI transcription — used when the Google key is out of quota. */
+async function lovableTranscribe(audioBase64: string, mimeType: string): Promise<string> {
+  const form = new FormData();
+  form.append("model", "google/gemini-3.5-transcribe");
+  const clean = mimeType.split(";")[0] ?? "audio/webm";
+  const safe = clean.startsWith("audio/") ? clean : "audio/webm";
+  const ext =
+    ({ "audio/wav": "wav", "audio/mpeg": "mp3", "audio/mp4": "mp4", "audio/webm": "webm" } as Record<string, string>)[
+      safe
+    ] ?? "webm";
+  form.append(
+    "file",
+    new Blob([base64ToBytes(audioBase64) as unknown as BlobPart], { type: safe }),
+    `recording.${ext}`,
+  );
+
+  const response = await fetch("https://ai.gateway.lovable.dev/v1/audio/transcriptions", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { Authorization: `Bearer ${lovableKey()}` },
+    body: form,
+  });
+  const body = await response.text();
+  if (!response.ok) {
+    throw new Error(`Transcription failed (${response.status}): ${shortReason(body, body.slice(0, 200))}`);
+  }
+  const parsed = JSON.parse(body) as { text?: string };
+  return (parsed.text ?? "").trim();
+}
+
+/** Lovable AI text/vision reasoning — used when the Google key is out of quota. */
+async function callLovableAI(parts: GeminiPart[], systemInstruction?: string): Promise<string> {
+  const content = parts.map((part) =>
+    "text" in part
+      ? { type: "input_text", text: part.text }
+      : {
+          type: "input_image",
+          image_url: `data:${part.inline_data.mime_type};base64,${part.inline_data.data}`,
+        },
+  );
+
+  const response = await fetch("https://ai.gateway.lovable.dev/v1/responses", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Lovable-API-Key": lovableKey(),
+      "X-Lovable-AIG-SDK": "fetch",
+    },
     body: JSON.stringify({
-      contents: [{ role: "user", parts }],
-      ...(systemInstruction ? { systemInstruction: { parts: [{ text: systemInstruction }] } } : {}),
-      generationConfig: { temperature: 0.2 },
+      model: "openai/gpt-6-astra",
+      ...(systemInstruction ? { instructions: systemInstruction } : {}),
+      input: [{ role: "user", content }],
+      stream: true,
+      reasoning: { effort: "low", summary: "auto" },
+      store: false,
     }),
   });
 
-  const body = await response.text();
-  if (!response.ok) {
-    throw new Error(`Gemini request failed (${response.status}): ${shortReason(body, body.slice(0, 200))}`);
+  if (!response.ok || !response.body) {
+    const body = await response.text().catch(() => "");
+    throw new Error(`Lovable AI request failed (${response.status}): ${shortReason(body, body.slice(0, 200))}`);
   }
 
-  const parsed = JSON.parse(body) as {
-    candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
-  };
-  const text = parsed.candidates?.[0]?.content?.parts?.map((part) => part.text ?? "").join("").trim();
-  if (!text) throw new Error("Gemini returned an empty response.");
-  return text;
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let text = "";
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop() ?? "";
+    for (const line of lines) {
+      if (!line.startsWith("data:")) continue;
+      const payload = line.slice(5).trim();
+      if (!payload || payload === "[DONE]") continue;
+      try {
+        const event = JSON.parse(payload) as { type?: string; delta?: string };
+        if (event.type === "response.output_text.delta" && event.delta) text += event.delta;
+      } catch {
+        /* keep-alive chunk */
+      }
+    }
+  }
+  return text.trim();
+}
+
+/** True when the Google key is rate limited, out of quota, or rejected. */
+function isGoogleKeyBlocked(message: string): boolean {
+  return /\((429|401|403)\)|quota|rate limit|RESOURCE_EXHAUSTED|API key not valid/i.test(message);
+}
+
+async function callGemini(parts: GeminiPart[], systemInstruction?: string): Promise<string> {
+  const audio = parts.find(
+    (part): part is { inline_data: { mime_type: string; data: string } } =>
+      "inline_data" in part && part.inline_data.mime_type.startsWith("audio/"),
+  );
+
+  try {
+    const response = await fetch(`${GEN_LANG}/${GEMINI_MODEL}:generateContent?key=${apiKey()}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ role: "user", parts }],
+        ...(systemInstruction ? { systemInstruction: { parts: [{ text: systemInstruction }] } } : {}),
+        generationConfig: { temperature: 0.2 },
+      }),
+    });
+
+    const body = await response.text();
+    if (!response.ok) {
+      throw new Error(`Gemini request failed (${response.status}): ${shortReason(body, body.slice(0, 200))}`);
+    }
+
+    const parsed = JSON.parse(body) as {
+      candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+    };
+    const text = parsed.candidates?.[0]?.content?.parts?.map((part) => part.text ?? "").join("").trim();
+    if (!text) throw new Error("Gemini returned an empty response.");
+    return text;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (!isGoogleKeyBlocked(message)) throw error;
+    // Google key blocked (quota/billing) — keep the pipeline alive on Lovable AI.
+    if (audio) return lovableTranscribe(audio.inline_data.data, audio.inline_data.mime_type);
+    return callLovableAI(parts, systemInstruction);
+  }
 }
 
 /* ------------------------------------------------------------------ */
