@@ -66,8 +66,37 @@ export function IkhosLanguageProvider({ children }: { children: ReactNode }) {
   return <LanguageContext.Provider value={value}>{children}</LanguageContext.Provider>;
 }
 
+/**
+ * Reads the shared language preference. If a component renders outside the
+ * provider (hot reload, isolated preview), it falls back to a self-contained
+ * localStorage-backed preference instead of crashing the screen.
+ */
 export function useIkhosLanguage(): LanguageContextValue {
   const context = useContext(LanguageContext);
-  if (!context) throw new Error("useIkhosLanguage must be used inside IkhosLanguageProvider");
-  return context;
+  const [language, setLanguageState] = useState<LanguageName>("Spanish");
+  const [needsOnboarding, setNeedsOnboarding] = useState(false);
+
+  useEffect(() => {
+    if (context) return;
+    const stored = nameForCode(window.localStorage.getItem(STORAGE_KEY));
+    if (stored) setLanguageState(stored);
+    else setNeedsOnboarding(true);
+  }, [context]);
+
+  const fallback = useMemo<LanguageContextValue>(() => {
+    const entry = IKHOS_LANGUAGES.find((item) => item.name === language);
+    return {
+      language,
+      languageCode: entry ? entry.code : "es",
+      setLanguage: (next: LanguageName) => {
+        setLanguageState(next);
+        const match = IKHOS_LANGUAGES.find((item) => item.name === next);
+        if (match) window.localStorage.setItem(STORAGE_KEY, match.code);
+      },
+      needsOnboarding,
+      completeOnboarding: () => setNeedsOnboarding(false),
+    };
+  }, [language, needsOnboarding]);
+
+  return context ?? fallback;
 }
