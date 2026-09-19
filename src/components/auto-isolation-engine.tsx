@@ -295,16 +295,33 @@ export function AutoIsolationEngine({
                   className="pitch-chip"
                   data-active={lockedHz === item.hz}
                   aria-pressed={lockedHz === item.hz}
-                  aria-label={`Isolate the ${item.hz} hertz source — ${describePitch(item.hz)}`}
-                  title={describePitch(item.hz)}
+                  aria-label={`Isolate ${item.label} at ${item.hz} hertz — ${describePitch(item.hz)}`}
+                  title={`${item.label} · ${describePitch(item.hz)}`}
                   onClick={() => lockPitchRef.current(item.hz)}
                 >
-                  {item.hz} Hz
+                  {item.label} · {item.hz} Hz
                   <span className="pitch-chip-meta">{describePitch(item.hz)}</span>
                 </button>
               ))
             )}
           </div>
+        ) : null}
+
+        {state !== "denied" ? (
+          <button
+            type="button"
+            className="pin-signature-button"
+            aria-label="Pin the strongest stage PA speaker signature and strip background crowd noise"
+            title="Locks the loudest detected voice and suppresses everything outside its frequency band"
+            disabled={sources.length === 0}
+            onClick={() => {
+              const target = sources.find((item) => item.hz === lockedHz) ?? sources[0];
+              if (target) lockPitchRef.current(target.hz);
+            }}
+          >
+            <LockKeyhole className="size-4" aria-hidden="true" />
+            Pin Stage PA Speaker Signature
+          </button>
         ) : null}
 
         <p className="mt-2 text-xs text-muted-foreground">{status}</p>
