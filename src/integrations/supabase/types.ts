@@ -14,7 +14,42 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      active_streams: {
+        Row: {
+          attendee_name: string
+          created_at: string
+          id: string
+          latency_ms: number
+          noise_suppression_db: number
+          original_transcript: string
+          selected_language: string
+          status: string
+          translated_transcript: string
+        }
+        Insert: {
+          attendee_name: string
+          created_at?: string
+          id?: string
+          latency_ms?: number
+          noise_suppression_db?: number
+          original_transcript?: string
+          selected_language: string
+          status?: string
+          translated_transcript?: string
+        }
+        Update: {
+          attendee_name?: string
+          created_at?: string
+          id?: string
+          latency_ms?: number
+          noise_suppression_db?: number
+          original_transcript?: string
+          selected_language?: string
+          status?: string
+          translated_transcript?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
