@@ -193,9 +193,24 @@ export function AutoIsolationEngine({
       sampleRateRef.current = context.sampleRate;
 
       const source = context.createMediaStreamSource(stream);
+
+      // Far-field normalization: compensate the 1/r^2 SPL drop-off so a voice
+      // 6–12 ft away (adjacent desk / stage) reaches processing threshold, while
+      // the compressor prevents the near-field voice from clipping the ADC range.
+      const farFieldBoost = context.createGain();
+      farFieldBoost.gain.value = 4; // ~+12 dB for distant speakers
+      const compressor = context.createDynamicsCompressor();
+      compressor.threshold.setValueAtTime(-24, context.currentTime);
+      compressor.knee.setValueAtTime(30, context.currentTime);
+      compressor.ratio.setValueAtTime(12, context.currentTime);
+      compressor.attack.setValueAtTime(0.003, context.currentTime);
+      compressor.release.setValueAtTime(0.25, context.currentTime);
+      source.connect(farFieldBoost);
+      farFieldBoost.connect(compressor);
+
       const analyser = context.createAnalyser();
       analyser.fftSize = 2048;
-      source.connect(analyser);
+      compressor.connect(analyser);
 
       // Isolation chain: everything the engine transcribes passes the bandpass.
       const filter = context.createBiquadFilter();
