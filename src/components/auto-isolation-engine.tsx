@@ -418,6 +418,8 @@ export function AutoIsolationEngine({
           void extractorNow.captureVoiceprint(merged, rate).then((ok) => {
             if (!ok) return;
             printedIdRef.current = trackedId;
+            armedRef.current = true;
+            chunksRef.current = [];
             node.port.postMessage({ type: "ARM", armed: true });
             setVoiceprintState("locked");
             setVectorDim(extractorNow.dimension);
