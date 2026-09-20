@@ -537,10 +537,36 @@ export function AutoIsolationEngine({
         ) : null}
 
         {state !== "denied" ? (
-          <p className="mt-2 text-xs text-muted-foreground" data-voiceprint={voiceprintState}>
-            {isolationLabel}
-          </p>
+          <div className="tse-panel" data-voiceprint={voiceprintState}>
+            <p className="tse-badge" role="status">
+              <LockKeyhole className="size-3.5" aria-hidden="true" />
+              {voiceprintState === "locked"
+                ? `[ Target Voiceprint Encoded • ${vectorDim || 192}-D Vector Locked ]`
+                : voiceprintState === "learning"
+                  ? "[ Encoding target voiceprint — keep the pinned voice speaking ]"
+                  : voiceprintState === "unavailable"
+                    ? "[ Neural extraction unavailable on this device ]"
+                    : "[ Target Speaker Extraction engine ready ]"}
+            </p>
+            <div
+              className="match-meter"
+              role="meter"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={Math.round(matchStrength * 100)}
+              aria-label="Cosine similarity between live audio and the pinned voiceprint"
+            >
+              <span style={{ width: `${Math.max(2, Math.round(matchStrength * 100))}%` }} />
+            </div>
+            <p className="tse-readout">
+              Target Match: {Math.round(matchStrength * 100)}% ·{" "}
+              {voiceprintState === "locked"
+                ? "Crowd / TV / Radio Rejection: Active"
+                : isolationLabel}
+            </p>
+          </div>
         ) : null}
+
 
         <p className="mt-2 text-xs text-muted-foreground">{status}</p>
         {lastTranslation ? (
