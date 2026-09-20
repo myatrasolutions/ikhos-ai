@@ -159,6 +159,7 @@ export function AutoIsolationEngine({
   const lockSpeaker = useCallback((id: number, hz: number, pin = false) => {
     if (lockedIdRef.current !== id) {
       printedIdRef.current = null;
+      armedRef.current = false;
       sampleRef.current = [];
       extractorRef.current?.reset();
       workletRef.current?.port.postMessage({ type: "ARM", armed: false });
