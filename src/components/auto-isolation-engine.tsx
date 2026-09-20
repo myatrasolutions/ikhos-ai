@@ -63,6 +63,7 @@ export function AutoIsolationEngine({
   const [lastTranslation, setLastTranslation] = useState("");
   const [voiceprintState, setVoiceprintState] = useState<"idle" | "learning" | "locked" | "unavailable">("idle");
   const [matchStrength, setMatchStrength] = useState(0);
+  const [vectorDim, setVectorDim] = useState(0);
 
   /** Cleaned (masked) audio waiting to be transcribed. */
   const chunksRef = useRef<Float32Array[]>([]);
