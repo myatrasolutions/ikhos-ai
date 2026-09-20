@@ -5,6 +5,11 @@ import { useServerFn } from "@tanstack/react-start";
 import { encodeWav, blobToBase64 } from "@/lib/member-b-audio";
 import { runSpeechPipeline, synthesizeTranslation } from "@/lib/member-b.functions";
 import type { LanguageName } from "@/lib/ikhos-language";
+import {
+  MATCH_WINDOW_SECONDS,
+  TargetSpeakerExtractor,
+  VOICEPRINT_SECONDS,
+} from "@/lib/target-speaker-extractor";
 
 type EngineState = "starting" | "listening" | "running" | "denied";
 
@@ -12,8 +17,8 @@ type NoiseSource = { hz: number; level: number; id: number; label: string };
 
 /** Length of every autonomous capture window, in milliseconds. */
 const WINDOW_MS = 6000;
-/** Bandpass sharpness around the locked speaker pitch. */
-const LOCK_Q = 8;
+/** How often the pinned voiceprint is re-scored against live audio. */
+const MASK_INTERVAL_MS = 500;
 
 /** How close two peaks must be (Hz) to count as the same speaker. */
 const SAME_SPEAKER_HZ = 45;
@@ -28,10 +33,13 @@ function describePitch(hz: number): string {
 /**
  * Continuous, hands-free isolation engine.
  *
- * Captures every ambient source the moment the screen opens, ranks the distinct
- * pitch signatures in the room, locks on to one of them (strongest by default,
- * or whichever the attendee picks), and then keeps translating and speaking the
- * isolated voice in the attendee's language without any further interaction.
+ * Captures every ambient source the moment the screen opens and ranks the
+ * distinct pitch signatures in the room so the attendee can see who is talking.
+ * Once a person is pinned, a 3-second sample of that voice is turned into a
+ * neural voiceprint (CAM++ speaker embedding, on-device) and every incoming
+ * window is scored against it; non-matching audio is gated to silence on the
+ * audio-worklet thread. Only the surviving target voice is transcribed,
+ * translated and spoken back in the attendee's language — no button presses.
  */
 export function AutoIsolationEngine({
   language,
@@ -53,13 +61,22 @@ export function AutoIsolationEngine({
   const [pinned, setPinned] = useState(initialTargetHz !== null && initialTargetHz !== undefined);
   const [status, setStatus] = useState("Sampling the room for distinct voices…");
   const [lastTranslation, setLastTranslation] = useState("");
+  const [voiceprintState, setVoiceprintState] = useState<"idle" | "learning" | "locked" | "unavailable">("idle");
+  const [matchStrength, setMatchStrength] = useState(0);
 
-  const filterRef = useRef<BiquadFilterNode | null>(null);
+  /** Cleaned (masked) audio waiting to be transcribed. */
   const chunksRef = useRef<Float32Array[]>([]);
+  /** Raw audio frames tagged with the dominant pitch when they were captured. */
+  const rawRef = useRef<{ frame: Float32Array; hz: number }[]>([]);
+  /** Frames confirmed to belong to the pinned person, used to learn the voiceprint. */
+  const sampleRef = useRef<Float32Array[]>([]);
   const sampleRateRef = useRef(48000);
+  const dominantHzRef = useRef(0);
   const lockedRef = useRef<number | null>(initialTargetHz ?? null);
   /** Identity of the pinned person; survives frequency drift. */
   const lockedIdRef = useRef<number | null>(null);
+  /** Identity whose voiceprint is already captured. */
+  const printedIdRef = useRef<number | null>(null);
   const pinnedRef = useRef(initialTargetHz !== null && initialTargetHz !== undefined);
   const initialTargetRef = useRef(initialTargetHz ?? null);
   const busyRef = useRef(false);
@@ -69,6 +86,8 @@ export function AutoIsolationEngine({
   const speakersRef = useRef<{ id: number; hz: number; level: number }[]>([]);
   const languageRef = useRef(language);
   const playerRef = useRef<HTMLAudioElement | null>(null);
+  const workletRef = useRef<AudioWorkletNode | null>(null);
+  const extractorRef = useRef<TargetSpeakerExtractor | null>(null);
 
   useEffect(() => {
     languageRef.current = language;
@@ -84,7 +103,7 @@ export function AutoIsolationEngine({
 
     let peak = 0;
     for (const chunk of chunks) for (const sample of chunk) peak = Math.max(peak, Math.abs(sample));
-    if (peak < 0.01) return; // silence inside the locked band
+    if (peak < 0.01) return; // the target voice was silent in this window
 
     busyRef.current = true;
     try {
@@ -101,7 +120,7 @@ export function AutoIsolationEngine({
       });
 
       if (!result.original) {
-        setStatus("Listening — no speech in the locked voice band yet.");
+        setStatus("Listening — the pinned voice has not spoken in this window.");
         return;
       }
 
@@ -126,10 +145,18 @@ export function AutoIsolationEngine({
 
   /**
    * Lock on to one *person* (stable id), not a raw frequency reading.
-   * The tracked pitch keeps drifting slightly, so the filter follows the
-   * person's smoothed centroid while the identity stays pinned.
+   * The pitch reading only decides which audio is sampled; the actual isolation
+   * is done by the neural voiceprint learned from that sample.
    */
   const lockSpeaker = useCallback((id: number, hz: number, pin = false) => {
+    if (lockedIdRef.current !== id) {
+      printedIdRef.current = null;
+      sampleRef.current = [];
+      extractorRef.current?.reset();
+      workletRef.current?.port.postMessage({ type: "ARM", armed: false });
+      setVoiceprintState(extractorRef.current?.ready ? "learning" : "unavailable");
+      setMatchStrength(0);
+    }
     lockedIdRef.current = id;
     lockedRef.current = hz;
     if (pin) pinnedRef.current = true;
@@ -137,15 +164,11 @@ export function AutoIsolationEngine({
     setLockedHz(hz);
     setPinned((current) => current || pin);
     chunksRef.current = [];
-    if (filterRef.current) {
-      filterRef.current.frequency.value = hz;
-      filterRef.current.Q.value = pinnedRef.current || pin ? LOCK_Q * 1.5 : LOCK_Q;
-    }
     setState("running");
     setStatus(
       pin || pinnedRef.current
-        ? `Person ${id} pinned at ${Math.round(hz)} Hz — signature held, crowd stripped.`
-        : `Locked on Person ${id} (${Math.round(hz)} Hz) — translating continuously.`,
+        ? `Person ${id} pinned — learning their voiceprint to strip the other voices.`
+        : `Listening to Person ${id} (${Math.round(hz)} Hz) — learning their voiceprint.`,
     );
   }, []);
   const lockPitch = lockSpeaker;
@@ -156,6 +179,11 @@ export function AutoIsolationEngine({
     let disposed = false;
 
     const start = async () => {
+      // Load the on-device speaker-embedding model in parallel with mic setup.
+      const extractor = new TargetSpeakerExtractor();
+      extractorRef.current = extractor;
+      const modelPromise = extractor.init();
+
       let stream: MediaStream;
       try {
         // Raw far-field capture: disable browser near-field suppression (AEC/AGC/NS)
@@ -212,24 +240,61 @@ export function AutoIsolationEngine({
       analyser.fftSize = 2048;
       compressor.connect(analyser);
 
-      // Isolation chain: everything the engine transcribes passes the bandpass.
-      const filter = context.createBiquadFilter();
-      filter.type = "bandpass";
-      filter.frequency.value = initialTargetRef.current ?? 180;
-      filter.Q.value = initialTargetRef.current === null ? 1 : LOCK_Q * 1.5;
-      filterRef.current = filter;
-      compressor.connect(filter);
+      // Isolation chain: the worklet gates every sample by the neural mask.
+      let worklet: AudioWorkletNode | null = null;
+      try {
+        await context.audioWorklet.addModule("/spk-extractor-processor.js");
+        if (disposed) throw new Error("disposed");
+        worklet = new AudioWorkletNode(context, "target-speaker-processor", {
+          numberOfInputs: 1,
+          numberOfOutputs: 1,
+          outputChannelCount: [1],
+        });
+        compressor.connect(worklet);
+        const mute = context.createGain();
+        mute.gain.value = 0;
+        worklet.connect(mute);
+        mute.connect(context.destination);
+        workletRef.current = worklet;
 
-      const processor = context.createScriptProcessor(4096, 1, 1);
-      processor.onaudioprocess = (event) => {
-        if (lockedRef.current === null) return;
-        chunksRef.current.push(new Float32Array(event.inputBuffer.getChannelData(0)));
-      };
-      filter.connect(processor);
-      const mute = context.createGain();
-      mute.gain.value = 0;
-      processor.connect(mute);
-      mute.connect(context.destination);
+        const maxRawFrames = Math.ceil((context.sampleRate * 6) / 1536);
+        worklet.port.onmessage = (event) => {
+          const data = event.data as {
+            type: string;
+            frame: Float32Array;
+            cleaned: Float32Array;
+            mask: number;
+          };
+          if (data.type !== "AUDIO_FRAME") return;
+
+          // Cleaned audio feeds transcription once a voice is being tracked.
+          if (lockedRef.current !== null) chunksRef.current.push(data.cleaned);
+
+          // Raw audio, tagged with the pitch heard at that moment, feeds the model.
+          rawRef.current.push({ frame: data.frame, hz: dominantHzRef.current });
+          if (rawRef.current.length > maxRawFrames) rawRef.current.shift();
+
+          // Collect a clean sample of the pinned person to learn their voiceprint.
+          const trackedId = lockedIdRef.current;
+          if (trackedId !== null && printedIdRef.current !== trackedId) {
+            const tracked = speakersRef.current.find((entry) => entry.id === trackedId);
+            if (tracked && Math.abs(dominantHzRef.current - tracked.hz) < SAME_SPEAKER_HZ) {
+              sampleRef.current.push(data.frame);
+            }
+          }
+        };
+      } catch {
+        // Worklet unsupported — fall back to unmasked capture below.
+        workletRef.current = null;
+      }
+
+      const modelReady = await modelPromise;
+      if (!disposed) {
+        setVoiceprintState(modelReady && worklet ? "idle" : "unavailable");
+        if (!modelReady) {
+          setStatus("Voiceprint engine unavailable — translating the loudest voice instead.");
+        }
+      }
 
       const spectrum = new Uint8Array(analyser.frequencyBinCount);
       const waveform = new Uint8Array(analyser.fftSize);
@@ -275,6 +340,7 @@ export function AutoIsolationEngine({
           peaks.push({ hz: known.hz, level: value, id: known.id, label: `Person ${known.id}` });
         }
         peaks.sort((a, b) => b.level - a.level);
+        dominantHzRef.current = peaks[0]?.hz ?? 0;
         const top = peaks.slice(0, 4);
         // Always keep the locked person visible, even during a quiet moment.
         if (lockedIdRef.current !== null && !top.some((item) => item.id === lockedIdRef.current)) {
@@ -294,12 +360,10 @@ export function AutoIsolationEngine({
           if (nearest) lockPitchRef.current(nearest.id, nearest.hz, true);
         }
 
-        // Follow the pinned person's drifting centroid instead of re-picking a voice.
+        // Keep the readout on the pinned person's drifting centroid.
         if (lockedIdRef.current !== null) {
           const tracked = speakersRef.current.find((entry) => entry.id === lockedIdRef.current);
-          if (tracked && filterRef.current) {
-            filterRef.current.frequency.setTargetAtTime(tracked.hz, context.currentTime, 0.25);
-            filterRef.current.Q.value = pinnedRef.current ? LOCK_Q * 1.5 : LOCK_Q;
+          if (tracked) {
             lockedRef.current = tracked.hz;
             setLockedHz(tracked.hz);
           }
@@ -314,16 +378,65 @@ export function AutoIsolationEngine({
         }
       }, 400);
 
+      /** Learn the pinned voiceprint, then score live audio against it. */
+      const mask = window.setInterval(() => {
+        const extractorNow = extractorRef.current;
+        const node = workletRef.current;
+        if (!extractorNow?.ready || !node) return;
+        const rate = sampleRateRef.current;
+        const trackedId = lockedIdRef.current;
+        if (trackedId === null) return;
+
+        if (printedIdRef.current !== trackedId) {
+          const collected = sampleRef.current;
+          const total = collected.reduce((sum, chunk) => sum + chunk.length, 0);
+          if (total < rate * VOICEPRINT_SECONDS) {
+            setVoiceprintState("learning");
+            return;
+          }
+          const merged = new Float32Array(total);
+          let offset = 0;
+          for (const chunk of collected) {
+            merged.set(chunk, offset);
+            offset += chunk.length;
+          }
+          sampleRef.current = [];
+          void extractorNow.captureVoiceprint(merged, rate).then((ok) => {
+            if (!ok) return;
+            printedIdRef.current = trackedId;
+            node.port.postMessage({ type: "ARM", armed: true });
+            setVoiceprintState("locked");
+            setStatus(`Voiceprint locked on Person ${trackedId} — all other voices are muted.`);
+          });
+          return;
+        }
+
+        // Score the most recent second of raw audio against the voiceprint.
+        const needed = Math.ceil((rate * MATCH_WINDOW_SECONDS) / 1536);
+        const recent = rawRef.current.slice(-needed);
+        if (recent.length < needed) return;
+        const merged = new Float32Array(recent.length * 1536);
+        recent.forEach((entry, index) => merged.set(entry.frame, index * 1536));
+        void extractorNow.maskFor(merged, rate).then((value) => {
+          if (value === null) return;
+          node.port.postMessage({ type: "SET_MASK", mask: value });
+          setMatchStrength(extractorNow.lastSimilarity);
+        });
+      }, MASK_INTERVAL_MS);
+
       const cycle = window.setInterval(() => {
         void processWindow();
       }, WINDOW_MS);
 
       cleanupRef.current = () => {
         window.clearInterval(detect);
+        window.clearInterval(mask);
         window.clearInterval(cycle);
-        processor.onaudioprocess = null;
-        processor.disconnect();
-        filter.disconnect();
+        if (worklet) {
+          worklet.port.onmessage = null;
+          worklet.disconnect();
+        }
+        workletRef.current = null;
         source.disconnect();
         stream.getTracks().forEach((track) => track.stop());
         void context.close();
@@ -337,6 +450,15 @@ export function AutoIsolationEngine({
       cleanupRef.current = null;
     };
   }, [onHighNoise, processWindow]);
+
+  const isolationLabel =
+    voiceprintState === "locked"
+      ? `Voiceprint isolation active · ${Math.round(matchStrength * 100)}% match`
+      : voiceprintState === "learning"
+        ? "Learning the pinned voiceprint…"
+        : voiceprintState === "unavailable"
+          ? "Voiceprint engine unavailable on this device"
+          : "Neural voiceprint engine ready";
 
   return (
     <div className="ambient-monitor" role="status" aria-live="polite">
@@ -395,7 +517,7 @@ export function AutoIsolationEngine({
             className="pin-signature-button"
             data-pinned={pinned}
             aria-label="Pin the strongest stage PA speaker signature and strip background crowd noise"
-            title="Locks the loudest detected voice and suppresses everything outside its frequency band"
+            title="Learns the chosen voice and mutes every other source in the room"
             disabled={sources.length === 0}
             onClick={() => {
               const target =
@@ -409,6 +531,12 @@ export function AutoIsolationEngine({
               ? `Signature Pinned · Person ${lockedId} · ${lockedHz ? Math.round(lockedHz) : 0} Hz`
               : "Pin Stage PA Speaker Signature"}
           </button>
+        ) : null}
+
+        {state !== "denied" ? (
+          <p className="mt-2 text-xs text-muted-foreground" data-voiceprint={voiceprintState}>
+            {isolationLabel}
+          </p>
         ) : null}
 
         <p className="mt-2 text-xs text-muted-foreground">{status}</p>
