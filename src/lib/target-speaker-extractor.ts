@@ -31,7 +31,7 @@ const MATCH_THRESHOLD = 0.7;
 /** Similarity at or below this is suppressed to the noise floor; between the two it fades. */
 const REJECT_THRESHOLD = 0.45;
 /** Residual gain applied to rejected frames (crowd, TV, radio) — effectively silence. */
-const REJECT_GAIN = 0.05;
+const REJECT_GAIN = 0;
 
 type Runtime = typeof import("onnxruntime-web");
 

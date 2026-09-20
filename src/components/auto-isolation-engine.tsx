@@ -89,6 +89,10 @@ export function AutoIsolationEngine({
   const playerRef = useRef<HTMLAudioElement | null>(null);
   const workletRef = useRef<AudioWorkletNode | null>(null);
   const extractorRef = useRef<TargetSpeakerExtractor | null>(null);
+  /** True once the pinned person's voiceprint is encoded and gating is live. */
+  const armedRef = useRef(false);
+  /** False when the device cannot run the neural engine (fallback: loudest voice). */
+  const neuralRef = useRef(true);
 
   useEffect(() => {
     languageRef.current = language;
@@ -97,10 +101,13 @@ export function AutoIsolationEngine({
   /** Send one captured window through translation + speech synthesis. */
   const processWindow = useCallback(async () => {
     if (busyRef.current || lockedRef.current === null) return;
+    // Never translate anything until the pinned person's voiceprint is encoded —
+    // otherwise every voice in the room reaches the translator.
+    if (neuralRef.current && !armedRef.current) return;
     const chunks = chunksRef.current;
     chunksRef.current = [];
     const samples = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
-    if (samples < sampleRateRef.current) return; // less than a second of audio
+    if (samples < sampleRateRef.current) return; // less than a second of matched audio
 
     let peak = 0;
     for (const chunk of chunks) for (const sample of chunk) peak = Math.max(peak, Math.abs(sample));
@@ -152,6 +159,7 @@ export function AutoIsolationEngine({
   const lockSpeaker = useCallback((id: number, hz: number, pin = false) => {
     if (lockedIdRef.current !== id) {
       printedIdRef.current = null;
+      armedRef.current = false;
       sampleRef.current = [];
       extractorRef.current?.reset();
       workletRef.current?.port.postMessage({ type: "ARM", armed: false });
@@ -269,19 +277,28 @@ export function AutoIsolationEngine({
           };
           if (data.type !== "AUDIO_FRAME") return;
 
-          // Cleaned audio feeds transcription once a voice is being tracked.
-          if (lockedRef.current !== null) chunksRef.current.push(data.cleaned);
+          // Only audio that matched the pinned voiceprint reaches transcription.
+          // Before the voiceprint exists (or on devices without the neural engine)
+          // nothing is queued, so a non-pinned voice can never be translated.
+          const matched = !neuralRef.current || (armedRef.current && data.mask >= 0.6);
+          if (lockedRef.current !== null && matched) chunksRef.current.push(data.cleaned);
 
           // Raw audio, tagged with the pitch heard at that moment, feeds the model.
           rawRef.current.push({ frame: data.frame, hz: dominantHzRef.current });
           if (rawRef.current.length > maxRawFrames) rawRef.current.shift();
 
-          // Collect a clean sample of the pinned person to learn their voiceprint.
+          // Collect a clean sample of the pinned person to learn their voiceprint —
+          // only frames that actually carry speech energy at that person's pitch.
           const trackedId = lockedIdRef.current;
           if (trackedId !== null && printedIdRef.current !== trackedId) {
             const tracked = speakersRef.current.find((entry) => entry.id === trackedId);
             if (tracked && Math.abs(dominantHzRef.current - tracked.hz) < SAME_SPEAKER_HZ) {
-              sampleRef.current.push(data.frame);
+              let peak = 0;
+              for (let i = 0; i < data.frame.length; i += 8) {
+                const value = Math.abs(data.frame[i] ?? 0);
+                if (value > peak) peak = value;
+              }
+              if (peak > 0.02) sampleRef.current.push(data.frame);
             }
           }
         };
@@ -291,9 +308,10 @@ export function AutoIsolationEngine({
       }
 
       const modelReady = await modelPromise;
+      neuralRef.current = Boolean(modelReady && worklet);
       if (!disposed) {
-        setVoiceprintState(modelReady && worklet ? "idle" : "unavailable");
-        if (!modelReady) {
+        setVoiceprintState(neuralRef.current ? "idle" : "unavailable");
+        if (!neuralRef.current) {
           setStatus("Voiceprint engine unavailable — translating the loudest voice instead.");
         }
       }
@@ -406,6 +424,8 @@ export function AutoIsolationEngine({
           void extractorNow.captureVoiceprint(merged, rate).then((ok) => {
             if (!ok) return;
             printedIdRef.current = trackedId;
+            armedRef.current = true;
+            chunksRef.current = [];
             node.port.postMessage({ type: "ARM", armed: true });
             setVoiceprintState("locked");
             setVectorDim(extractorNow.dimension);
