@@ -407,6 +407,7 @@ export function AutoIsolationEngine({
             printedIdRef.current = trackedId;
             node.port.postMessage({ type: "ARM", armed: true });
             setVoiceprintState("locked");
+            setVectorDim(extractorNow.dimension);
             setStatus(`Voiceprint locked on Person ${trackedId} — all other voices are muted.`);
           });
           return;
