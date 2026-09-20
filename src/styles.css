@@ -741,3 +741,43 @@
   .hall-status { right: .5rem; bottom: .5rem; max-width: calc(100% - 1rem); }
   .live-reading-screen .focus-translated-copy { font-size: 2rem; }
 }
+
+/* Target Speaker Extraction telemetry (neural voiceprint panel). */
+.tse-panel {
+  margin-top: 0.65rem;
+  display: grid;
+  gap: 0.35rem;
+}
+.tse-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-family: var(--font-mono, ui-monospace), monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.02em;
+  color: color-mix(in oklch, var(--signal, #06b6d4) 86%, white);
+}
+.tse-panel[data-voiceprint="locked"] .tse-badge {
+  color: oklch(0.82 0.15 160);
+}
+.tse-panel[data-voiceprint="unavailable"] .tse-badge {
+  color: color-mix(in oklch, currentColor 60%, transparent);
+}
+.match-meter {
+  position: relative;
+  height: 0.4rem;
+  border-radius: 999px;
+  overflow: hidden;
+  background: color-mix(in oklch, currentColor 14%, transparent);
+}
+.match-meter > span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, color-mix(in oklch, var(--signal, #06b6d4) 70%, transparent), oklch(0.82 0.15 160));
+  transition: width 0.4s ease;
+}
+.tse-readout {
+  font-size: 0.72rem;
+  color: color-mix(in oklch, currentColor 72%, transparent);
+}
