@@ -27,9 +27,9 @@ export const VOICEPRINT_SECONDS = 3;
 /** Seconds of audio scored against the voiceprint for each mask update. */
 export const MATCH_WINDOW_SECONDS = 1;
 /** Cosine similarity at or above this counts as the pinned speaker. */
-const MATCH_THRESHOLD = 0.45;
+const MATCH_THRESHOLD = 0.55;
 /** Similarity at or below this is fully suppressed; between the two it fades. */
-const REJECT_THRESHOLD = 0.2;
+const REJECT_THRESHOLD = 0.35;
 
 type Runtime = typeof import("onnxruntime-web");
 
