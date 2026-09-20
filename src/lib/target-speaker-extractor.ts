@@ -74,6 +74,9 @@ export class TargetSpeakerExtractor {
   /** Similarity of the most recent scored window, for UI feedback. */
   lastSimilarity = 0;
 
+  /** Dimensionality of the pinned voiceprint vector (0 until one is encoded). */
+  dimension = 0;
+
   /** True once the neural engine is loaded and usable. */
   get ready(): boolean {
     return this.session !== null;
