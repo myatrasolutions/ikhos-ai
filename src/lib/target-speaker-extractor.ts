@@ -127,6 +127,7 @@ export class TargetSpeakerExtractor {
     const embedding = await this.embed(resampleTo16k(samples, sampleRate)).catch(() => null);
     if (!embedding) return false;
     this.voiceprint = embedding;
+    this.dimension = embedding.length;
     return true;
   }
 
@@ -134,6 +135,7 @@ export class TargetSpeakerExtractor {
   reset(): void {
     this.voiceprint = null;
     this.lastSimilarity = 0;
+    this.dimension = 0;
   }
 
   /**
