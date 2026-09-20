@@ -277,8 +277,11 @@ export function AutoIsolationEngine({
           };
           if (data.type !== "AUDIO_FRAME") return;
 
-          // Cleaned audio feeds transcription once a voice is being tracked.
-          if (lockedRef.current !== null) chunksRef.current.push(data.cleaned);
+          // Only audio that matched the pinned voiceprint reaches transcription.
+          // Before the voiceprint exists (or on devices without the neural engine)
+          // nothing is queued, so a non-pinned voice can never be translated.
+          const matched = !neuralRef.current || (armedRef.current && data.mask >= 0.6);
+          if (lockedRef.current !== null && matched) chunksRef.current.push(data.cleaned);
 
           // Raw audio, tagged with the pitch heard at that moment, feeds the model.
           rawRef.current.push({ frame: data.frame, hz: dominantHzRef.current });
