@@ -23,7 +23,7 @@ const MODEL_URL = "https://huggingface.co/Luigi/campplus-zh-en-onnx/resolve/main
 /** The embedding network expects 16 kHz mono audio. */
 export const MODEL_SAMPLE_RATE = FBANK_SAMPLE_RATE;
 /** Seconds of audio captured to build the pinned speaker's voiceprint. */
-export const VOICEPRINT_SECONDS = 3;
+export const VOICEPRINT_SECONDS = 2;
 /** Seconds of audio scored against the voiceprint for each mask update. */
 export const MATCH_WINDOW_SECONDS = 1;
 /** Cosine similarity at or above this counts as the pinned speaker. */
