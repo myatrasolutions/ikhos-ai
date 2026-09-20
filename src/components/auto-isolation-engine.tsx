@@ -157,6 +157,7 @@ export function AutoIsolationEngine({
       workletRef.current?.port.postMessage({ type: "ARM", armed: false });
       setVoiceprintState(extractorRef.current?.ready ? "learning" : "unavailable");
       setMatchStrength(0);
+      setVectorDim(0);
     }
     lockedIdRef.current = id;
     lockedRef.current = hz;
