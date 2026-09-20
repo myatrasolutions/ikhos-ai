@@ -17,4 +17,6 @@
 - [x] Replace the calibration bar graph with an immersive event-hall person selector and explicit pin action.
 - [x] Restyle the live translation experience in the selected Charcoal & Jade editorial direction.
 - [x] Add a high-level introduction and user manual to README.md.
+- [x] Replace bandpass isolation with neural target-speaker extraction: AudioWorklet gating + on-device CAM++ speaker embeddings (ONNX Runtime Web) with a JS Kaldi fbank front-end; verified same-speaker 0.77 vs different-speaker 0.28/0.34 cosine.
 - [ ] Create a pull request to https://github.com/myatrasolutions/IkhosAI.
+
