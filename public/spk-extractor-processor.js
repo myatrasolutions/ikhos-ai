@@ -51,22 +51,31 @@ class TargetSpeakerProcessor extends AudioWorkletProcessor {
     for (let i = 0; i < inputChannel.length; i += 1) {
       const sample = inputChannel[i];
 
-      // Collect frames for the embedding model regardless of mask state.
-      this.buffer[this.filled] = sample;
-      this.filled += 1;
-      if (this.filled === FRAME_SIZE) {
-        this.port.postMessage({ type: "AUDIO_FRAME", frame: this.buffer.slice(0) });
-        this.filled = 0;
-      }
-
       // Glide toward the requested mask so gating never clicks.
       const delta = this.targetMask - this.currentMask;
       if (delta > MASK_SLEW) this.currentMask += MASK_SLEW;
       else if (delta < -MASK_SLEW) this.currentMask -= MASK_SLEW;
       else this.currentMask = this.targetMask;
 
-      outputChannel[i] = this.armed ? sample * this.currentMask : sample;
+      const cleaned = this.armed ? sample * this.currentMask : sample;
+      outputChannel[i] = cleaned;
+
+      // Collect raw frames (for voiceprint matching) and cleaned frames
+      // (for transcription) regardless of the current mask state.
+      this.buffer[this.filled] = sample;
+      this.masked[this.filled] = cleaned;
+      this.filled += 1;
+      if (this.filled === FRAME_SIZE) {
+        this.port.postMessage({
+          type: "AUDIO_FRAME",
+          frame: this.buffer.slice(0),
+          cleaned: this.masked.slice(0),
+          mask: this.currentMask,
+        });
+        this.filled = 0;
+      }
     }
+
 
     return true;
   }
