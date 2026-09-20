@@ -287,12 +287,18 @@ export function AutoIsolationEngine({
           rawRef.current.push({ frame: data.frame, hz: dominantHzRef.current });
           if (rawRef.current.length > maxRawFrames) rawRef.current.shift();
 
-          // Collect a clean sample of the pinned person to learn their voiceprint.
+          // Collect a clean sample of the pinned person to learn their voiceprint —
+          // only frames that actually carry speech energy at that person's pitch.
           const trackedId = lockedIdRef.current;
           if (trackedId !== null && printedIdRef.current !== trackedId) {
             const tracked = speakersRef.current.find((entry) => entry.id === trackedId);
             if (tracked && Math.abs(dominantHzRef.current - tracked.hz) < SAME_SPEAKER_HZ) {
-              sampleRef.current.push(data.frame);
+              let peak = 0;
+              for (let i = 0; i < data.frame.length; i += 8) {
+                const value = Math.abs(data.frame[i] ?? 0);
+                if (value > peak) peak = value;
+              }
+              if (peak > 0.02) sampleRef.current.push(data.frame);
             }
           }
         };
