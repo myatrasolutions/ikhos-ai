@@ -302,9 +302,10 @@ export function AutoIsolationEngine({
       }
 
       const modelReady = await modelPromise;
+      neuralRef.current = Boolean(modelReady && worklet);
       if (!disposed) {
-        setVoiceprintState(modelReady && worklet ? "idle" : "unavailable");
-        if (!modelReady) {
+        setVoiceprintState(neuralRef.current ? "idle" : "unavailable");
+        if (!neuralRef.current) {
           setStatus("Voiceprint engine unavailable — translating the loudest voice instead.");
         }
       }
