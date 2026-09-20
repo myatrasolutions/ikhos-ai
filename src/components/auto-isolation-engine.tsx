@@ -101,10 +101,13 @@ export function AutoIsolationEngine({
   /** Send one captured window through translation + speech synthesis. */
   const processWindow = useCallback(async () => {
     if (busyRef.current || lockedRef.current === null) return;
+    // Never translate anything until the pinned person's voiceprint is encoded —
+    // otherwise every voice in the room reaches the translator.
+    if (neuralRef.current && !armedRef.current) return;
     const chunks = chunksRef.current;
     chunksRef.current = [];
     const samples = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
-    if (samples < sampleRateRef.current) return; // less than a second of audio
+    if (samples < sampleRateRef.current) return; // less than a second of matched audio
 
     let peak = 0;
     for (const chunk of chunks) for (const sample of chunk) peak = Math.max(peak, Math.abs(sample));
