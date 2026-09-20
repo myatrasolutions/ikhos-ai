@@ -127,12 +127,13 @@ export function computeFbank(samples: Float32Array): { frames: number; data: Flo
     for (let i = 0; i < FRAME_LENGTH; i += 1) mean += samples[offset + i]! * 32768;
     mean /= FRAME_LENGTH;
 
-    let previous = (samples[offset]! * 32768 - mean) * (DITHER === 0 ? 1 : 1);
+    // Pre-emphasis then windowing, exactly as Kaldi orders them.
     for (let i = FRAME_LENGTH - 1; i >= 0; i -= 1) {
       const current = samples[offset + i]! * 32768 - mean;
-      previous = i > 0 ? samples[offset + i - 1]! * 32768 - mean : current;
+      const previous = i > 0 ? samples[offset + i - 1]! * 32768 - mean : current;
       frame[i] = (current - PREEMPHASIS * previous) * window[i]!;
     }
+
 
     const power = powerSpectrum(frame);
     for (let m = 0; m < NUM_MEL; m += 1) {
