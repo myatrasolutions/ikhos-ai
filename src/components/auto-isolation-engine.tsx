@@ -89,6 +89,10 @@ export function AutoIsolationEngine({
   const playerRef = useRef<HTMLAudioElement | null>(null);
   const workletRef = useRef<AudioWorkletNode | null>(null);
   const extractorRef = useRef<TargetSpeakerExtractor | null>(null);
+  /** True once the pinned person's voiceprint is encoded and gating is live. */
+  const armedRef = useRef(false);
+  /** False when the device cannot run the neural engine (fallback: loudest voice). */
+  const neuralRef = useRef(true);
 
   useEffect(() => {
     languageRef.current = language;
