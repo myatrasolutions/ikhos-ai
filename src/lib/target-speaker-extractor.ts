@@ -147,8 +147,9 @@ export class TargetSpeakerExtractor {
       const similarity = cosine(this.voiceprint, embedding);
       this.lastSimilarity = similarity;
       if (similarity >= MATCH_THRESHOLD) return 1;
-      if (similarity <= REJECT_THRESHOLD) return 0;
-      return (similarity - REJECT_THRESHOLD) / (MATCH_THRESHOLD - REJECT_THRESHOLD);
+      if (similarity <= REJECT_THRESHOLD) return REJECT_GAIN;
+      const ramp = (similarity - REJECT_THRESHOLD) / (MATCH_THRESHOLD - REJECT_THRESHOLD);
+      return REJECT_GAIN + ramp * (1 - REJECT_GAIN);
     } catch {
       return null;
     } finally {
