@@ -63,6 +63,7 @@ export function AutoIsolationEngine({
   const [lastTranslation, setLastTranslation] = useState("");
   const [voiceprintState, setVoiceprintState] = useState<"idle" | "learning" | "locked" | "unavailable">("idle");
   const [matchStrength, setMatchStrength] = useState(0);
+  const [vectorDim, setVectorDim] = useState(0);
 
   /** Cleaned (masked) audio waiting to be transcribed. */
   const chunksRef = useRef<Float32Array[]>([]);
@@ -156,6 +157,7 @@ export function AutoIsolationEngine({
       workletRef.current?.port.postMessage({ type: "ARM", armed: false });
       setVoiceprintState(extractorRef.current?.ready ? "learning" : "unavailable");
       setMatchStrength(0);
+      setVectorDim(0);
     }
     lockedIdRef.current = id;
     lockedRef.current = hz;
@@ -406,6 +408,7 @@ export function AutoIsolationEngine({
             printedIdRef.current = trackedId;
             node.port.postMessage({ type: "ARM", armed: true });
             setVoiceprintState("locked");
+            setVectorDim(extractorNow.dimension);
             setStatus(`Voiceprint locked on Person ${trackedId} — all other voices are muted.`);
           });
           return;
@@ -534,10 +537,36 @@ export function AutoIsolationEngine({
         ) : null}
 
         {state !== "denied" ? (
-          <p className="mt-2 text-xs text-muted-foreground" data-voiceprint={voiceprintState}>
-            {isolationLabel}
-          </p>
+          <div className="tse-panel" data-voiceprint={voiceprintState}>
+            <p className="tse-badge" role="status">
+              <LockKeyhole className="size-3.5" aria-hidden="true" />
+              {voiceprintState === "locked"
+                ? `[ Target Voiceprint Encoded • ${vectorDim || 192}-D Vector Locked ]`
+                : voiceprintState === "learning"
+                  ? "[ Encoding target voiceprint — keep the pinned voice speaking ]"
+                  : voiceprintState === "unavailable"
+                    ? "[ Neural extraction unavailable on this device ]"
+                    : "[ Target Speaker Extraction engine ready ]"}
+            </p>
+            <div
+              className="match-meter"
+              role="meter"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={Math.round(matchStrength * 100)}
+              aria-label="Cosine similarity between live audio and the pinned voiceprint"
+            >
+              <span style={{ width: `${Math.max(2, Math.round(matchStrength * 100))}%` }} />
+            </div>
+            <p className="tse-readout">
+              Target Match: {Math.round(matchStrength * 100)}% ·{" "}
+              {voiceprintState === "locked"
+                ? "Crowd / TV / Radio Rejection: Active"
+                : isolationLabel}
+            </p>
+          </div>
         ) : null}
+
 
         <p className="mt-2 text-xs text-muted-foreground">{status}</p>
         {lastTranslation ? (

@@ -23,13 +23,15 @@ const MODEL_URL = "https://huggingface.co/Luigi/campplus-zh-en-onnx/resolve/main
 /** The embedding network expects 16 kHz mono audio. */
 export const MODEL_SAMPLE_RATE = FBANK_SAMPLE_RATE;
 /** Seconds of audio captured to build the pinned speaker's voiceprint. */
-export const VOICEPRINT_SECONDS = 3;
+export const VOICEPRINT_SECONDS = 2;
 /** Seconds of audio scored against the voiceprint for each mask update. */
 export const MATCH_WINDOW_SECONDS = 1;
 /** Cosine similarity at or above this counts as the pinned speaker. */
-const MATCH_THRESHOLD = 0.55;
-/** Similarity at or below this is fully suppressed; between the two it fades. */
-const REJECT_THRESHOLD = 0.35;
+const MATCH_THRESHOLD = 0.7;
+/** Similarity at or below this is suppressed to the noise floor; between the two it fades. */
+const REJECT_THRESHOLD = 0.45;
+/** Residual gain applied to rejected frames (crowd, TV, radio) — effectively silence. */
+const REJECT_GAIN = 0.05;
 
 type Runtime = typeof import("onnxruntime-web");
 
@@ -71,6 +73,9 @@ export class TargetSpeakerExtractor {
 
   /** Similarity of the most recent scored window, for UI feedback. */
   lastSimilarity = 0;
+
+  /** Dimensionality of the pinned voiceprint vector (0 until one is encoded). */
+  dimension = 0;
 
   /** True once the neural engine is loaded and usable. */
   get ready(): boolean {
@@ -122,6 +127,7 @@ export class TargetSpeakerExtractor {
     const embedding = await this.embed(resampleTo16k(samples, sampleRate)).catch(() => null);
     if (!embedding) return false;
     this.voiceprint = embedding;
+    this.dimension = embedding.length;
     return true;
   }
 
@@ -129,6 +135,7 @@ export class TargetSpeakerExtractor {
   reset(): void {
     this.voiceprint = null;
     this.lastSimilarity = 0;
+    this.dimension = 0;
   }
 
   /**
@@ -145,8 +152,9 @@ export class TargetSpeakerExtractor {
       const similarity = cosine(this.voiceprint, embedding);
       this.lastSimilarity = similarity;
       if (similarity >= MATCH_THRESHOLD) return 1;
-      if (similarity <= REJECT_THRESHOLD) return 0;
-      return (similarity - REJECT_THRESHOLD) / (MATCH_THRESHOLD - REJECT_THRESHOLD);
+      if (similarity <= REJECT_THRESHOLD) return REJECT_GAIN;
+      const ramp = (similarity - REJECT_THRESHOLD) / (MATCH_THRESHOLD - REJECT_THRESHOLD);
+      return REJECT_GAIN + ramp * (1 - REJECT_GAIN);
     } catch {
       return null;
     } finally {

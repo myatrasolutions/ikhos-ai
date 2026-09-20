@@ -199,8 +199,10 @@ function LiveScreen({ streams, pinned }: { streams: Stream[]; pinned: HallSpeake
       </div>
 
       <div className="focus-telemetry" role="status">
-        <span><Waves aria-hidden="true" />Isolation: −96 dB</span>
-        <span><Gauge aria-hidden="true" />Person {pinned?.id ?? 1}: {pinned?.hz ?? 240} Hz</span>
+        <span><Waves aria-hidden="true" />Isolation Engine: Target Speaker Extraction (TSE)</span>
+        <span><LockKeyhole aria-hidden="true" />Target Vector Lock: Active · Person {pinned?.id ?? 1}</span>
+        <span><Radio aria-hidden="true" />Crowd / TV / Radio Suppression: −96 dB</span>
+        <span><Gauge aria-hidden="true" />{pinned?.hz ?? 240} Hz</span>
         <span><Check aria-hidden="true" />Latency: {latency}s</span>
       </div>
     </section>
