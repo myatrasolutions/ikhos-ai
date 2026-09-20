@@ -14,7 +14,6 @@ const FFT_SIZE = 512;
 const NUM_MEL = 80;
 const LOW_HZ = 20;
 const HIGH_HZ = 7600;
-const DITHER = 0;
 const PREEMPHASIS = 0.97;
 const EPSILON = 1.1920928955078125e-7;
 
