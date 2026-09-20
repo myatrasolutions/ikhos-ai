@@ -25,7 +25,9 @@ class TargetSpeakerProcessor extends AudioWorkletProcessor {
     /** True once a speaker is pinned; before that the audio passes through. */
     this.armed = false;
     this.buffer = new Float32Array(FRAME_SIZE);
+    this.masked = new Float32Array(FRAME_SIZE);
     this.filled = 0;
+
 
     this.port.onmessage = (event) => {
       const data = event.data;
